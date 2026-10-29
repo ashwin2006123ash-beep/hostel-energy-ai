@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Reports — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <div>
+    <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Campus Energy & Audit Report</h1>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem;">
+      Executive energy intelligence report for hostel wardens, college management, and project judges.
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <select class="select-custom" id="report-timeframe" onchange="loadReportSummary()">
+      <option value="24h">Last 24 Hours</option>
+      <option value="7d">Last 7 Days</option>
+      <option value="30d" selected>Last 30 Days (Full Billing Cycle)</option>
+    </select>
+    <a href="/api/reports/export-csv" class="btn btn-secondary btn-sm" download>
+      ⬇ Export Flagged Rooms CSV
+    </a>
+    <button class="btn btn-emerald btn-sm" onclick="window.print()">
+      🖨️ Print / Save PDF
+    </button>
+  </div>
+</div>
+
+<!-- Executive Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Total Campus Consumption</div>
+    <div id="rep-consumption" style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 0.35rem;">-- kWh</div>
+    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;">Across all 4 hostel blocks</div>
+  </div>
+
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Estimated Utility Cost</div>
+    <div id="rep-cost" style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-top: 0.35rem;">₹--</div>
+    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;">Configured tariff applied</div>
+  </div>
+
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <div style="font-size: 0.75rem; color: var(--accent-emerald); text-transform: uppercase; font-weight: 600;">Verified M&V Savings</div>
+    <div id="rep-savings" style="font-size: 1.8rem; font-weight: 800; color: var(--accent-emerald); margin-top: 0.35rem;">₹--</div>
+    <div id="rep-savings-kwh" style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.5rem;">-- kWh verified reduction</div>
+  </div>
+
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <div style="font-size: 0.75rem; color: var(--accent-rose); text-transform: uppercase; font-weight: 600;">Flagged Investigation Rooms</div>
+    <div id="rep-flagged" style="font-size: 1.8rem; font-weight: 800; color: var(--accent-rose); margin-top: 0.35rem;">-- Rooms</div>
+    <div id="rep-anomalies" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;">-- total telemetry excursions</div>
+  </div>
+</div>
+
+<!-- Block-by-Block Comparison Table -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem;">Hostel Block Breakdown & Per-Student Intensity</h3>
+  <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+    Normalized comparison accounting for resident student counts across blocks.
+  </p>
+
+  <div class="table-responsive">
+    <table class="custom-table" id="report-blocks-table">
+      <thead>
+        <tr>
+          <th>Hostel Block</th>
+          <th>Total Consumption</th>
+          <th>Estimated Bill</th>
+          <th>Avg Occupancy</th>
+          <th>Per-Student Energy Intensity</th>
+          <th>Carbon Impact (CO₂e)</th>
+        </tr>
+      </thead>
+      <tbody id="report-blocks-body">
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading block statistics...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Methodology & Transparency Notice -->
+<div class="glass-panel" style="padding: 1.25rem 1.5rem; background: rgba(15, 23, 42, 0.4); border-color: var(--border-glass);">
+  <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 0.4rem;">Audit Methodology & Data Authenticity Notice</h4>
+  <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;">
+    1. Meter readings in this demonstration are generated from real calibrated baseline models based on the LEAD1.0 energy anomaly dataset.<br>
+    2. Baseline predictions use Gradient Boosting Regressors conditioned on student presence, calendar schedule, and ambient weather degrees.<br>
+    3. Bill estimations utilize standard two-tier institutional energy billing schedules without fabricating synthetic tariff rates.
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}

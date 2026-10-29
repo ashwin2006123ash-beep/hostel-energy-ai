@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Operational Settings — Room Command Center{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+      <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Occupancy-Aware Policy Settings</h1>
+      <span class="badge badge-normal" style="font-size: 0.72rem;">Operational Configuration</span>
+    </div>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary);">
+      Dynamic threshold configuration, daytime window schedule, persistence duration policies, and safety interlocks.
+    </p>
+  </div>
+</div>
+
+<!-- Strict Real-Hardware Safety Banner -->
+<div class="glass-panel" style="padding: 1.25rem; margin-bottom: 2rem; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.35); display: flex; gap: 1rem; align-items: flex-start;">
+  <span style="font-size: 1.8rem;">🔒</span>
+  <div>
+    <h3 style="font-size: 1.05rem; font-weight: 700; color: #f87171; margin-bottom: 0.25rem;">
+      MANDATORY HARDWARE SAFETY LOCK ENGAGED
+    </h3>
+    <p style="font-size: 0.84rem; color: #cbd5e1; line-height: 1.45;">
+      Real physical switching control is strictly disabled in this application. Software thresholds simulate room cutoffs inside SQLite to demonstrate intelligent protection logic without risk of physical mains disruption or electrical arching.
+    </p>
+  </div>
+</div>
+
+<!-- Form Container -->
+<div class="glass-panel" style="padding: 1.75rem; max-width: 800px; margin-bottom: 2.5rem;">
+  <div id="settings-alert-container" style="display: none; margin-bottom: 1.5rem; padding: 1rem 1.25rem; border-radius: 8px; font-size: 0.9rem; font-weight: 500;"></div>
+  <form id="settings-form" onsubmit="saveSettings(event)">
+    
+    <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+      1. Daytime Window Schedule (Occupancy-Dependent Period)
+    </h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Daytime Window Start
+        </label>
+        <input type="text" id="set-daytime-start" class="select-custom" value="{{ settings.daytime_start | default('07:00') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Lectures start; student rooms expected vacant.</div>
+      </div>
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Daytime Window End
+        </label>
+        <input type="text" id="set-daytime-end" class="select-custom" value="{{ settings.daytime_end | default('18:00') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Evening return; standard occupancy resumes.</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+      2. Wattage Thresholds
+    </h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Vacant Room Wattage Threshold (W)
+        </label>
+        <input type="number" step="1" id="set-empty-threshold" class="select-custom" value="{{ settings.empty_room_threshold_w | default('35.0') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Maximum permissible draw when room is vacant (standby baseline).</div>
+      </div>
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Maximum Room Power Limit (W)
+        </label>
+        <input type="number" step="10" id="set-high-power-threshold" class="select-custom" value="{{ settings.high_power_threshold_w | default('1200.0') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">High-power alert trigger threshold (irons, induction plates).</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+      3. Persistence Timers & Sensor Freshness
+    </h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.75rem;">
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Vacant Auto-Trip Persistence Window (Minutes)
+        </label>
+        <input type="number" step="1" id="set-persistence" class="select-custom" value="{{ settings.persistence_window_min | default('15') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Duration over threshold required before simulated cutoff occurs.</div>
+      </div>
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Continuous Geyser Run Limit (Minutes)
+        </label>
+        <input type="number" step="1" id="set-geyser" class="select-custom" value="{{ settings.geyser_persistence_min | default('45') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Stuck thermostat / continuous load warning duration.</div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-emerald" style="padding: 0.65rem 1.5rem; font-weight: 700;">
+      ✓ Save Policy Configuration
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

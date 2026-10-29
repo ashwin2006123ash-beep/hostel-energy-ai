@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Rooms Investigation — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <div>
+    <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Hostel Room Energy Investigation</h1>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem;">
+      Room-by-room context-aware electricity monitoring, occupancy tracking, and prioritized corrective actions.
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center;">
+    <a href="{{ url_for('views.recommendations') }}" class="btn btn-secondary btn-sm">
+      Warden Recommendations &rarr;
+    </a>
+  </div>
+</div>
+
+<!-- Quick Metric Pills -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+  <div class="glass-panel" style="padding: 1rem 1.25rem;">
+    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Flagged Rooms</div>
+    <div id="rooms-total-count" style="font-size: 1.6rem; font-weight: 800; color: #fff; margin-top: 0.25rem;">--</div>
+  </div>
+  <div class="glass-panel" style="padding: 1rem 1.25rem;">
+    <div style="font-size: 0.75rem; color: var(--accent-rose); text-transform: uppercase; font-weight: 600;">Critical Attention</div>
+    <div id="rooms-critical-count" style="font-size: 1.6rem; font-weight: 800; color: var(--accent-rose); margin-top: 0.25rem;">--</div>
+  </div>
+  <div class="glass-panel" style="padding: 1rem 1.25rem;">
+    <div style="font-size: 0.75rem; color: var(--accent-amber); text-transform: uppercase; font-weight: 600;">Likely Vacant Waste</div>
+    <div id="rooms-vacant-count" style="font-size: 1.6rem; font-weight: 800; color: var(--accent-amber); margin-top: 0.25rem;">--</div>
+  </div>
+  <div class="glass-panel" style="padding: 1rem 1.25rem;">
+    <div style="font-size: 0.75rem; color: var(--accent-emerald); text-transform: uppercase; font-weight: 600;">Resolved Cases</div>
+    <div id="rooms-resolved-count" style="font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald); margin-top: 0.25rem;">--</div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+  <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 180px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Search Room Number</label>
+      <input type="text" id="rooms-search" class="select-custom" placeholder="e.g. Room 204..." oninput="filterRoomsList()" style="width: 100%;">
+    </div>
+
+    <div style="min-width: 160px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Hostel Block</label>
+      <select id="rooms-filter-block" class="select-custom" onchange="loadRoomsList()" style="width: 100%;">
+        <option value="all">All Blocks</option>
+        {% for b_id, b_meta in blocks.items() %}
+        <option value="{{ b_id }}">{{ b_id }}: {{ b_meta.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="min-width: 150px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Occupancy Status</label>
+      <select id="rooms-filter-occupancy" class="select-custom" onchange="loadRoomsList()" style="width: 100%;">
+        <option value="all">All Occupancies</option>
+        <option value="likely vacant">Likely Vacant</option>
+        <option value="occupied">Occupied</option>
+        <option value="unknown">Unknown</option>
+      </select>
+    </div>
+
+    <div style="min-width: 150px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Severity</label>
+      <select id="rooms-filter-severity" class="select-custom" onchange="loadRoomsList()" style="width: 100%;">
+        <option value="all">All Severities</option>
+        <option value="CRITICAL">Critical Only</option>
+        <option value="HIGH">Warning / High</option>
+        <option value="LOW">Normal / Low</option>
+      </select>
+    </div>
+
+    <div style="min-width: 150px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Investigation Status</label>
+      <select id="rooms-filter-status" class="select-custom" onchange="loadRoomsList()" style="width: 100%;">
+        <option value="all">All Statuses</option>
+        <option value="pending" selected>Pending</option>
+        <option value="investigating">Investigating</option>
+        <option value="resolved">Resolved</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Flagged Rooms Table -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div class="table-responsive">
+    <table class="custom-table" id="rooms-table">
+      <thead>
+        <tr>
+          <th>Block & Room</th>
+          <th>Actual vs Expected</th>
+          <th>Occupancy Status</th>
+          <th>Severity & Reason</th>
+          <th>Recommended Action</th>
+          <th>Investigation Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rooms-tbody">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            Loading rooms data...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rooms.js') }}"></script>
+{% endblock %}

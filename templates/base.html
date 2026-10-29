@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Room Command Center — Hostel Energy AI{% endblock %}</title>
+  <meta name="description" content="Hostel Energy AI — Smart Room-Level Electricity Monitoring, NILM Fault Detection & Auto-Trip Simulation Dashboard.">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Compact Left Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="{{ url_for('views.command_center') }}" class="sidebar-brand">
+          <div class="nav-brand-logo" style="width: 32px; height: 32px; border-radius: 8px;">
+            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="sidebar-brand-title">ROOM COMMAND</div>
+            <span class="sidebar-brand-sub">Energy AI Protection</span>
+          </div>
+        </a>
+      </div>
+
+      <ul class="sidebar-nav">
+        <li>
+          <a href="{{ url_for('views.command_center') }}" class="sidebar-link {% if active_page == 'command_center' %}active{% endif %}">
+            <span class="sidebar-link-icon">🎛️</span>
+            <span>Command Center</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.live_rooms') }}" class="sidebar-link {% if active_page == 'live_rooms' %}active{% endif %}">
+            <span class="sidebar-link-icon">⚡</span>
+            <span>Live Rooms</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.investigation') }}" class="sidebar-link {% if active_page == 'investigation' %}active{% endif %}">
+            <span class="sidebar-link-icon">🔍</span>
+            <span>Room Investigation</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.nilm_simulator') }}" class="sidebar-link {% if active_page == 'nilm_simulator' %}active{% endif %}">
+            <span class="sidebar-link-icon">🧪</span>
+            <span>NILM Fault Simulator</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.trip_history') }}" class="sidebar-link {% if active_page == 'trip_history' %}active{% endif %}">
+            <span class="sidebar-link-icon">📋</span>
+            <span>Trip Event History</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.hardware') }}" class="sidebar-link {% if active_page == 'sensors' %}active{% endif %}">
+            <span class="sidebar-link-icon">📡</span>
+            <span>Sensors & Controllers</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.reports') }}" class="sidebar-link {% if active_page == 'reports' %}active{% endif %}">
+            <span class="sidebar-link-icon">📊</span>
+            <span>Reports & Savings</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.settings') }}" class="sidebar-link {% if active_page == 'settings' %}active{% endif %}">
+            <span class="sidebar-link-icon">⚙️</span>
+            <span>Settings</span>
+          </a>
+        </li>
+
+        <li style="margin-top: 1rem; padding: 0.5rem 0.85rem 0.25rem 0.85rem; font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">
+          Secondary Tools
+        </li>
+        <li>
+          <a href="{{ url_for('views.recommendations') }}" class="sidebar-link {% if active_page == 'recommendations' %}active{% endif %}">
+            <span class="sidebar-link-icon">💡</span>
+            <span>Warden Advice</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.incidents') }}" class="sidebar-link {% if active_page == 'incidents' %}active{% endif %}">
+            <span class="sidebar-link-icon">🧠</span>
+            <span>Incident Memory</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.digital_twin') }}" class="sidebar-link {% if active_page == 'digital_twin' %}active{% endif %}">
+            <span class="sidebar-link-icon">🏢</span>
+            <span>Digital Twin</span>
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('views.upload') }}" class="sidebar-link {% if active_page == 'upload' %}active{% endif %}">
+            <span class="sidebar-link-icon">📁</span>
+            <span>Upload CSV</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div style="display: flex; align-items: center; gap: 0.45rem; margin-bottom: 0.35rem;">
+          <div class="status-dot"></div>
+          <strong style="color: #cbd5e1; font-size: 0.76rem;">Simulation Engine</strong>
+        </div>
+        <div>Isolated Room Cutoff v2.4</div>
+      </div>
+    </aside>
+
+    <!-- Main Application Wrapper -->
+    <div class="main-wrapper">
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <span class="safety-badge">
+            <span style="display: inline-block; width: 6px; height: 6px; background: #ef4444; border-radius: 50%;"></span>
+            SIMULATION MODE — REAL HARDWARE RELAYS DISABLED
+          </span>
+          <span style="font-size: 0.78rem; color: var(--text-secondary); display: none; @media(min-width: 768px){display:inline;}">
+            Target Tariff: <strong>₹9.20 / kWh</strong>
+          </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1.25rem;">
+          <div class="status-indicator" style="padding: 0.25rem 0.7rem; font-size: 0.75rem;">
+            <div class="status-dot"></div>
+            <span>Corridor Hubs Online</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Body Content -->
+      <main class="main-content" style="padding: 1.75rem 2rem; flex: 1;">
+        {% block content %}{% endblock %}
+      </main>
+
+      <!-- Footer -->
+      <footer class="footer" style="margin-top: 2rem; padding: 1.25rem 2rem; font-size: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <span>Hostel Energy AI — Smart Room-Level Energy Protection System</span>
+          <span style="color: var(--text-muted);">Hackathon PS 3.1 • Safe Software-First Simulation Benchmark</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Diagnostic Evidence Modal (Shared Across Pages) -->
+  <div class="modal-overlay" id="diagnostic-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 1.25rem; font-weight: 700;" id="modal-title">AI Detective: Anomaly Diagnostic Report</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);" id="modal-subtitle">Root-cause attribution and evidence analysis</p>
+        </div>
+        <button class="modal-close" onclick="closeDiagnosticModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body-content">
+        <p style="color: var(--text-muted);">Loading diagnostic report...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Core Javascript -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

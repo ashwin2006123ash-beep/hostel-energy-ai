@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Digital Twin — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Interactive Campus Energy Digital Twin</h1>
+    <p class="page-subtitle">Real-time block-wise and floor-level spatial heatmaps, power density (W/m²), and active zone telemetry.</p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadDigitalTwinData()">Refresh Live State</button>
+  </div>
+</div>
+
+<!-- Campus Block Overview Grid -->
+<div class="digital-twin-grid" id="blocks-container">
+  <!-- Dynamic block cards injected via JavaScript -->
+  <div style="grid-column: span 2; text-align: center; padding: 3rem; color: var(--text-muted);">
+    Loading Campus Digital Twin Models...
+  </div>
+</div>
+
+<!-- Floor Detail Modal / Drilldown Section -->
+<div class="glass-panel" style="margin-top: 2rem; padding: 1.5rem;" id="floor-detail-panel">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+    <div>
+      <h3 style="font-size: 1.2rem;" id="selected-block-title">Block-A: Aryabhatta Hall — Floor Spatial Heatmap</h3>
+      <p style="font-size: 0.82rem; color: var(--text-secondary);">Sub-circuit telemetry, occupancy density, and estimated zone distribution.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;" id="floor-tabs">
+      <button class="btn btn-toggle active" onclick="selectFloor(1, this)">Floor 1</button>
+      <button class="btn btn-toggle" onclick="selectFloor(2, this)">Floor 2</button>
+      <button class="btn btn-toggle" onclick="selectFloor(3, this)">Floor 3</button>
+    </div>
+  </div>
+
+  <!-- Zone Visualizer Grid -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;" id="zone-cards-container">
+    <!-- Zone 1: Dormitory Rooms -->
+    <div class="glass-panel" style="padding: 1.25rem; background: rgba(0,0,0,0.25);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <strong style="color: #fff; font-size: 0.95rem;">Dormitory Rooms Wing</strong>
+        <span class="badge badge-medium">Zone A</span>
+      </div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-cyan);" id="zone-dorm-kw">3.8 kW</div>
+      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Estimated Active Plug & Lighting Load
+      </div>
+      <div class="floor-heat-bar">
+        <div class="floor-heat-fill" id="zone-dorm-bar" style="width: 55%; background: var(--accent-cyan);"></div>
+      </div>
+    </div>
+
+    <!-- Zone 2: Study Lounge -->
+    <div class="glass-panel" style="padding: 1.25rem; background: rgba(0,0,0,0.25);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <strong style="color: #fff; font-size: 0.95rem;">Central Study Lounge</strong>
+        <span class="badge badge-low">Zone B</span>
+      </div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald);" id="zone-study-kw">1.4 kW</div>
+      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        ESP32 Smart Controlled Ceiling Fans Active
+      </div>
+      <div class="floor-heat-bar">
+        <div class="floor-heat-fill" id="zone-study-bar" style="width: 30%; background: var(--accent-emerald);"></div>
+      </div>
+    </div>
+
+    <!-- Zone 3: Corridor & Washroom Fixtures -->
+    <div class="glass-panel" style="padding: 1.25rem; background: rgba(0,0,0,0.25);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <strong style="color: #fff; font-size: 0.95rem;">Corridor & Geyser Line</strong>
+        <span class="badge badge-high" id="zone-geyser-badge">Zone C</span>
+      </div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-amber);" id="zone-corridor-kw">2.6 kW</div>
+      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Basal corridor tubes & water heater circuits
+      </div>
+      <div class="floor-heat-bar">
+        <div class="floor-heat-fill" id="zone-corridor-bar" style="width: 65%; background: var(--accent-amber);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/digital_twin.js') }}"></script>
+{% endblock %}

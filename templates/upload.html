@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Upload CSV — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">CSV Telemetry Ingestion & Validation</h1>
+    <p class="page-subtitle">Upload sub-metered electrical telemetry files with automated physical range validation, schema verification, and autonomous anomaly inference.</p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="resetSyntheticDatabase()">Reset to Default Synthetic Telemetry</button>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.5rem; align-items: start;">
+  
+  <!-- Upload Controls & Schema Guide -->
+  <div>
+    <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+      <h3 style="font-size: 1.15rem; margin-bottom: 0.5rem;">Upload Telemetry CSV</h3>
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+        Select a CSV file containing electrical readings. Files up to 16 MB supported.
+      </p>
+
+      <form id="upload-form" onsubmit="event.preventDefault(); submitUpload('preview');">
+        <div style="border: 2px dashed var(--border-glass); border-radius: var(--radius-md); padding: 2rem 1.5rem; text-align: center; margin-bottom: 1.25rem; background: rgba(0,0,0,0.2);">
+          <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📁</div>
+          <label for="csv-file-input" style="cursor: pointer; display: block; font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.25rem;">
+            Click to Browse or Drag CSV File Here
+          </label>
+          <input type="file" id="csv-file-input" accept=".csv" style="display: none;" onchange="updateSelectedFileName(this)">
+          <div style="font-size: 0.78rem; color: var(--text-muted);" id="selected-file-label">No file selected yet</div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="submitUpload('preview')">
+            Validate & Preview
+          </button>
+          <button type="button" class="btn btn-primary" style="flex: 1;" id="btn-ingest" onclick="submitUpload('ingest')">
+            Ingest & Run AI
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Required Schema Format Guide -->
+    <div class="glass-panel" style="padding: 1.5rem;">
+      <h4 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
+        Expected CSV Schema
+      </h4>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Your CSV file must include these column headers:
+      </p>
+      <div style="background: rgba(0,0,0,0.4); border-radius: var(--radius-sm); padding: 0.85rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-cyan); line-height: 1.6; margin-bottom: 0.75rem;">
+        timestamp, block_id, power_kw, occupancy, temperature
+      </div>
+      <div style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5;">
+        • <strong>timestamp:</strong> YYYY-MM-DD HH:MM:SS format<br>
+        • <strong>block_id:</strong> Block-A, Block-B, Block-C, or Block-D<br>
+        • <strong>power_kw:</strong> Numeric active power (≥ 0.0 kW)<br>
+        • <strong>occupancy:</strong> Integer occupant count (≥ 0)<br>
+        • <strong>temperature:</strong> Ambient temperature in °C (-20 to 65)<br>
+        • <em>Optional:</em> floor, humidity, day_type
+      </div>
+    </div>
+  </div>
+
+  <!-- Validation Status & Preview Grid -->
+  <div>
+    <!-- Result / Status Box -->
+    <div id="validation-result-box" style="display: none; margin-bottom: 1.5rem;"></div>
+
+    <!-- Preview Table Panel -->
+    <div class="glass-panel" style="padding: 1.5rem; display: none;" id="preview-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h4 style="font-size: 1.05rem;">Telemetry Sample Preview (First 10 Rows)</h4>
+        <span class="badge badge-low" id="preview-row-count">Valid Rows</span>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table" id="preview-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Block</th>
+              <th>Power (kW)</th>
+              <th>Occupancy</th>
+              <th>Temp (°C)</th>
+            </tr>
+          </thead>
+          <tbody id="preview-table-body">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateSelectedFileName(input) {
+  const label = document.getElementById("selected-file-label");
+  if (input.files && input.files[0]) {
+    label.innerText = `Selected: ${input.files[0].name} (${(input.files[0].size / 1024).toFixed(1)} KB)`;
+    label.style.color = "var(--accent-cyan)";
+  } else {
+    label.innerText = "No file selected yet";
+    label.style.color = "var(--text-muted)";
+  }
+}
+
+async function submitUpload(action) {
+  const fileInput = document.getElementById("csv-file-input");
+  const resultBox = document.getElementById("validation-result-box");
+  const previewPanel = document.getElementById("preview-panel");
+
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert("Please select a CSV file first.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+  formData.append("action", action);
+
+  resultBox.style.display = "block";
+  resultBox.innerHTML = `
+    <div class="glass-panel" style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
+      <div class="fan-spinner" style="font-size: 1.8rem; margin-bottom: 0.5rem;">⚙️</div>
+      <p>Validating CSV schema and physical telemetry ranges...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.valid) {
+      // Errors
+      const errList = data.errors ? data.errors.map(e => `<li>${e}</li>`).join("") : "Validation failed.";
+      resultBox.innerHTML = `
+        <div class="glass-panel" style="padding: 1.5rem; background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.4);">
+          <strong style="color: #fb7185; font-size: 1rem; display: block; margin-bottom: 0.5rem;">❌ Validation Failed:</strong>
+          <ul style="color: #fecdd3; font-size: 0.85rem; padding-left: 1.25rem; line-height: 1.5;">
+            ${errList}
+          </ul>
+        </div>
+      `;
+      previewPanel.style.display = "none";
+      return;
+    }
+
+    // Success Preview or Ingest
+    if (action === "preview") {
+      const s = data.summary;
+      let warnHtml = "";
+      if (data.warnings && data.warnings.length > 0) {
+        warnHtml = `<div style="margin-top: 0.5rem; font-size: 0.8rem; color: #fde68a;">⚠️ ${data.warnings.join("; ")}</div>`;
+      }
+
+      resultBox.innerHTML = `
+        <div class="glass-panel" style="padding: 1.5rem; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.35);">
+          <strong style="color: #6ee7b7; font-size: 1.05rem; display: block; margin-bottom: 0.5rem;">
+            ✓ CSV Validation Passed (${s.total_rows.toLocaleString()} Records)
+          </strong>
+          <div style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5;">
+            • Blocks: ${s.unique_blocks.join(", ")}<br>
+            • Time Range: ${s.date_min} to ${s.date_max}<br>
+            • Average Active Power: ${s.avg_power_kw} kW (Peak: ${s.max_power_kw} kW)<br>
+            • Average Occupancy: ${s.avg_occupancy} students
+          </div>
+          ${warnHtml}
+        </div>
+      `;
+
+      // Render Preview rows
+      previewPanel.style.display = "block";
+      document.getElementById("preview-row-count").innerText = `${s.total_rows} Rows Valid`;
+      const tbody = document.getElementById("preview-table-body");
+      let rowsHtml = "";
+      data.preview.forEach(r => {
+        rowsHtml += `
+          <tr>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem;">${r.timestamp}</td>
+            <td><strong>${r.block_id}</strong></td>
+            <td>${r.power_kw} kW</td>
+            <td>${r.occupancy}</td>
+            <td>${r.temperature}°C</td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rowsHtml;
+
+    } else if (action === "ingest") {
+      resultBox.innerHTML = `
+        <div class="glass-panel" style="padding: 1.5rem; background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.35);">
+          <strong style="color: #38bdf8; font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">
+            ✓ Ingestion & AI Analysis Complete!
+          </strong>
+          <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.5;">
+            Successfully ingested <strong>${data.saved_rows}</strong> telemetry records into SQLite.
+            Context-aware anomaly detector evaluated incoming readings and identified <strong>${data.anomalies_detected}</strong> potential anomalies.
+          </p>
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem;">
+            <a href="/" class="btn btn-primary btn-sm">View on Dashboard &rarr;</a>
+            <a href="/detective" class="btn btn-secondary btn-sm">Inspect in AI Detective &rarr;</a>
+          </div>
+        </div>
+      `;
+      previewPanel.style.display = "none";
+    }
+
+  } catch (err) {
+    resultBox.innerHTML = `<div class="glass-panel" style="padding: 1.5rem; color: var(--accent-rose);">Upload error: ${err.message}</div>`;
+  }
+}
+
+async function resetSyntheticDatabase() {
+  if (!confirm("Are you sure you want to reset the database to the default 30-day synthetic telemetry?")) {
+    return;
+  }
+  try {
+    const res = await fetch("/api/reset-data", { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      alert("Database reset successfully!");
+      window.location.href = "/";
+    } else {
+      alert("Reset failed: " + data.error);
+    }
+  } catch (e) {
+    alert("Error resetting database: " + e.message);
+  }
+}
+</script>
+{% endblock %}

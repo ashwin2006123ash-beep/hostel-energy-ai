@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Efficiency League — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Fair Campus Energy Efficiency League</h1>
+    <p class="page-subtitle">Equitable hostel benchmarking normalized by occupant headcount, usable floor area (m²), and operational schedules.</p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadLeagueData()">Refresh Standings</button>
+  </div>
+</div>
+
+<!-- Normalization Principle Card -->
+<div class="glass-panel" style="padding: 1.25rem 1.5rem; margin-bottom: 2rem; background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(139, 92, 246, 0.05)); border-color: rgba(6, 182, 212, 0.25);">
+  <div style="display: flex; gap: 1rem; align-items: flex-start;">
+    <div style="font-size: 1.8rem;">⚖️</div>
+    <div>
+      <h3 style="font-size: 1.05rem; color: #fff; margin-bottom: 0.25rem;">Why Equitable Normalization is Vital</h3>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
+        Raw aggregate kilowatt-hours inherently bias against larger residences: <strong>Block-C and D</strong> accommodate 240 students across 3,200 m², whereas <strong>Block-A and B</strong> house 180 students across 2,400 m². The Fair League evaluates <strong>Specific Energy Consumption (kWh per occupant-day)</strong> and <strong>Energy Use Intensity (EUI in kWh/m²/month)</strong> so student blocks compete on true behavioral and operational efficiency.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- League Standings Table -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+    <div>
+      <h3 style="font-size: 1.2rem;">Official Campus Efficiency Standings</h3>
+      <p style="font-size: 0.82rem; color: var(--text-secondary);">Ranked by Composite Fair Efficiency Index (100 pt benchmark).</p>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table" id="league-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Hostel Block</th>
+          <th>Type</th>
+          <th>Capacity / Area</th>
+          <th>Specific Consumption</th>
+          <th>EUI Index</th>
+          <th>Night Waste</th>
+          <th>Rating</th>
+          <th>Fair Score</th>
+          <th>Achievements</th>
+        </tr>
+      </thead>
+      <tbody id="league-table-body">
+        <tr>
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">Calculating fair league standings...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Comparison Charts & Verified Savings Hall of Fame -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+  
+  <!-- Normalized SEC Chart -->
+  <div class="glass-panel chart-card">
+    <div class="chart-header">
+      <div class="chart-title-group">
+        <h3>Specific Energy Consumption</h3>
+        <p>kWh per Student Occupant-Day (Lower is more efficient)</p>
+      </div>
+    </div>
+    <div style="position: relative; height: 260px;">
+      <canvas id="secComparisonChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Verified Savings Hall of Fame -->
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <div class="chart-header">
+      <div class="chart-title-group">
+        <h3>Verified Savings Hall of Fame</h3>
+        <p>M&V IPMVP Option C Certified Implementations</p>
+      </div>
+    </div>
+    <div id="verified-actions-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <p style="color: var(--text-muted);">Loading verified savings interventions...</p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/league.js') }}"></script>
+{% endblock %}

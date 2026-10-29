@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Hardware & Sensors — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+      <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Hardware & IoT Sensors</h1>
+      <span class="badge badge-warning" style="font-size: 0.75rem; letter-spacing: 0.05em;">SOFTWARE SIMULATION</span>
+    </div>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary);">
+      Edge ESP32 controller testbench, motion detection telemetry, electrical readings, and heartbeat status monitoring.
+    </p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadHardwareDevices()">
+      ↻ Refresh Sensor Telemetry
+    </button>
+  </div>
+</div>
+
+<!-- Strict Hardware Disclaimer Banner -->
+<div class="glass-panel" style="padding: 1.25rem; margin-bottom: 2rem; background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.3);">
+  <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+    <span style="font-size: 1.5rem;">⚠️</span>
+    <div>
+      <div style="font-weight: 700; color: var(--accent-amber); font-size: 0.92rem; margin-bottom: 0.2rem;">
+        SAFETY NOTICE: SIMULATED FIRMWARE & SENSOR EMULATION
+      </div>
+      <p style="font-size: 0.84rem; color: #cbd5e1; line-height: 1.45;">
+        All ESP32 microcontrollers, PIR motion states, voltages, and currents shown below are generated via <strong>software simulation</strong>. No physical relays or high-voltage mains are energized or switched by this interface. Stale telemetry alerts are simulated to demonstrate edge connectivity resilience.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Sensor Network Grid -->
+<div id="device-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-bottom: 2.5rem;">
+  <div class="glass-panel" style="padding: 2.5rem; text-align: center; color: var(--text-muted); grid-column: 1 / -1;">
+    Loading simulated ESP32 devices and sensor telemetry...
+  </div>
+</div>
+
+<!-- Sensor Telemetry Command Logs -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div>
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Edge Telemetry & Simulation Logs</h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary);">Simulated command transmissions and edge controller responses.</p>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table" id="hardware-logs-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Device Node</th>
+          <th>Command Transmitted</th>
+          <th>Trigger Source</th>
+          <th>Controller Response</th>
+        </tr>
+      </thead>
+      <tbody id="hardware-logs-body">
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            Loading telemetry logs...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hardware.js') }}"></script>
+{% endblock %}

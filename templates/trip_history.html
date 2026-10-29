@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Trip Event History — Room Command Center{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+      <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Simulated Trip & Anomaly Event History</h1>
+      <span class="badge badge-normal" style="font-size: 0.72rem;">SQLite Audit Log</span>
+    </div>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary);">
+      Immutable audit log of simulated cutoffs, operator resets, high-power excursions, and automated state transitions.
+    </p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadTripEvents()">
+      ↻ Refresh Event Log
+    </button>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+  <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+    <div style="min-width: 180px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Filter by Room ID</label>
+      <select id="events-filter-room" class="select-custom" onchange="loadTripEvents()" style="width: 100%;">
+        <option value="all">All Rooms</option>
+        {% for b_id, b_meta in blocks.items() %}
+          <optgroup label="{{ b_id }}: {{ b_meta.name }}">
+            <option value="{{ b_id[6:] }}-101">{{ b_id[6:] }}-101</option>
+            <option value="{{ b_id[6:] }}-102">{{ b_id[6:] }}-102</option>
+            <option value="{{ b_id[6:] }}-204">{{ b_id[6:] }}-204</option>
+          </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="flex: 1; min-width: 200px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Search Explanation</label>
+      <input type="text" id="events-search" class="select-custom" placeholder="Search event reason e.g. vacant, heater, reset..." oninput="onEventsSearch()" style="width: 100%;">
+    </div>
+  </div>
+</div>
+
+<!-- Event History Table -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div class="table-responsive">
+    <table class="custom-table" id="trip-events-table">
+      <thead>
+        <tr>
+          <th>Event ID & Time</th>
+          <th>Room & Block</th>
+          <th>Event Type</th>
+          <th>Observed vs Threshold</th>
+          <th>Occupancy</th>
+          <th>Diagnostic Explanation</th>
+          <th>Action Taken</th>
+        </tr>
+      </thead>
+      <tbody id="trip-events-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            Loading simulated event history...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/trip_history.js') }}"></script>
+{% endblock %}

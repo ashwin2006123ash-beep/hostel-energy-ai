@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Live Room Grid — Room Command Center{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+      <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Live Room Telemetry Fleet</h1>
+      <span class="badge badge-normal" style="font-size: 0.72rem;">16 Monitored Smart Rooms</span>
+    </div>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary);">
+      Real-time electrical telemetry (V, I, W, kWh, PF), PIR motion tracking, and isolated auto-trip relay status.
+    </p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadLiveRoomsGrid()">
+      ↻ Refresh Telemetry
+    </button>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1.75rem;">
+  <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+    <div style="min-width: 170px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Hostel Block</label>
+      <select id="grid-filter-block" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
+        <option value="all">All Blocks (A, B, C, D)</option>
+        {% for b_id, b_meta in blocks.items() %}
+        <option value="{{ b_id }}">{{ b_id }}: {{ b_meta.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="min-width: 180px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Room Operational State</label>
+      <select id="grid-filter-state" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
+        <option value="all">All Room States</option>
+        <option value="NORMAL">NORMAL (Green)</option>
+        <option value="HIGH_USAGE">HIGH USAGE (Amber)</option>
+        <option value="ANOMALY_DETECTED">ANOMALY DETECTED</option>
+        <option value="TRIP_PENDING">TRIP PENDING</option>
+        <option value="TRIPPED_SIMULATED">TRIPPED — SIMULATION ONLY (Red)</option>
+        <option value="SENSOR_OFFLINE">SENSOR OFFLINE</option>
+        <option value="DATA_STALE">DATA STALE</option>
+      </select>
+    </div>
+
+    <div style="min-width: 160px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Occupancy State</label>
+      <select id="grid-filter-occupancy" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
+        <option value="all">All Occupancies</option>
+        <option value="Occupied">Occupied</option>
+        <option value="Likely Vacant">Likely Vacant</option>
+        <option value="Unknown">Unknown</option>
+      </select>
+    </div>
+
+    <div style="flex: 1; min-width: 180px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Quick Search</label>
+      <input type="text" id="grid-search" class="select-custom" placeholder="Search room e.g. A-101, B-105..." oninput="onGridSearch()" style="width: 100%;">
+    </div>
+  </div>
+</div>
+
+<!-- Room Cards Grid -->
+<div id="live-rooms-grid" class="room-card-grid" style="margin-bottom: 2.5rem;">
+  <div style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--text-muted);">
+    Loading live room fleet telemetry...
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/live_rooms.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}ESP32 Fan Control Simulation — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Virtual ESP32 Fan Control Hub</h1>
+    <p class="page-subtitle">Safe IoT edge node simulation for occupancy-driven adaptive fan throttling and thermal regulation.</p>
+  </div>
+  <div>
+    <button class="btn btn-secondary btn-sm" onclick="loadEsp32Devices()">Sync Telemetry</button>
+  </div>
+</div>
+
+<!-- Strict Hardware Simulation Safety Notice -->
+<div class="glass-panel" style="padding: 1.25rem 1.5rem; margin-bottom: 2rem; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.3);">
+  <div style="display: flex; gap: 1rem; align-items: flex-start;">
+    <div style="font-size: 1.8rem;">🔒</div>
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+        <span class="badge badge-medium">Simulation Sandbox Active</span>
+        <strong style="color: #fff; font-size: 1.05rem;">Zero Physical Switching Safety Assurance</strong>
+      </div>
+      <p style="font-size: 0.85rem; color: #bfdbfe; line-height: 1.5;">
+        This interface communicates exclusively with in-memory virtual firmware models. No physical relays, microcontrollers, or electrical circuits are commanded. Fan duty cycles, RPMs, and power watts are computed using fan aerodynamic affinity laws to test autonomous control algorithms safely.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Virtual ESP32 Device Nodes Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;" id="devices-container">
+  <div style="text-align: center; color: var(--text-muted); padding: 2rem; grid-column: 1/-1;">
+    Connecting to virtual edge nodes...
+  </div>
+</div>
+
+<!-- Simulation Logs & Command Console -->
+<div class="glass-panel" style="padding: 1.5rem;">
+  <div class="chart-header">
+    <div class="chart-title-group">
+      <h3>Virtual Edge Node Simulation Event Logs</h3>
+      <p>Audit trail of simulated PWM duty-cycle adjustments and autonomous occupancy triggers.</p>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table" id="esp32-logs-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Device Node</th>
+          <th>Command Executed</th>
+          <th>Triggered By</th>
+          <th>Simulated Telemetry Response</th>
+        </tr>
+      </thead>
+      <tbody id="esp32-logs-body">
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading simulation logs...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/esp32.js') }}"></script>
+{% endblock %}

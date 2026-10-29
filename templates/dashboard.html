@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <div>
+    <h1 class="page-title" style="font-size: 1.85rem; font-weight: 800;">Hostel Energy Overview</h1>
+    <p class="page-subtitle" style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem;">
+      Simplified campus electricity monitoring and prioritized room investigation for hostel wardens and administration.
+    </p>
+  </div>
+  <div class="chart-controls" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <select class="select-custom" id="filter-block" onchange="onFilterChange()" title="Filter by Hostel Block">
+      <option value="all">All Hostel Blocks</option>
+      {% for b_id, b_meta in blocks.items() %}
+      <option value="{{ b_id }}">{{ b_id }}: {{ b_meta.name }}</option>
+      {% endfor %}
+    </select>
+
+    <div class="btn-group" role="group" aria-label="Timeframe selection">
+      <button class="btn-toggle" onclick="setTimeframe('24h', this)">24 Hours</button>
+      <button class="btn-toggle active" onclick="setTimeframe('7d', this)">7 Days</button>
+      <button class="btn-toggle" onclick="setTimeframe('30d', this)">30 Days</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     1. FOUR PRIMARY KPI CARDS ONLY
+     ====================================================================== -->
+<div class="kpi-grid-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+  
+  <!-- Card 1: Total Electricity Consumption -->
+  <div class="glass-panel kpi-card" style="padding: 1.5rem; position: relative; overflow: hidden;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <span class="kpi-title" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">Total Consumption</span>
+        <div class="kpi-value" id="kpi-consumption" style="font-size: 2rem; font-weight: 800; color: #fff; margin-top: 0.5rem; font-family: var(--font-heading);">
+          -- <span style="font-size: 1.1rem; color: var(--text-muted); font-weight: 500;">kWh</span>
+        </div>
+      </div>
+      <div class="kpi-icon-badge" style="background: rgba(6, 182, 212, 0.12); color: var(--accent-cyan); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        ⚡
+      </div>
+    </div>
+    <div class="kpi-subtext" style="margin-top: 0.85rem; font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem;">
+      <span id="kpi-period-label" class="badge badge-normal" style="font-size: 0.72rem;">Last 7 Days</span>
+      <span>metered hostel power</span>
+    </div>
+  </div>
+
+  <!-- Card 2: Estimated Electricity Bill -->
+  <div class="glass-panel kpi-card" style="padding: 1.5rem; position: relative; overflow: hidden;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <span class="kpi-title" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">Estimated Bill</span>
+        <div class="kpi-value" id="kpi-bill" style="font-size: 2rem; font-weight: 800; color: #fff; margin-top: 0.5rem; font-family: var(--font-heading);">
+          ₹--
+        </div>
+      </div>
+      <div class="kpi-icon-badge" style="background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        ₹
+      </div>
+    </div>
+    <div class="kpi-subtext" style="margin-top: 0.85rem; font-size: 0.8rem; color: var(--text-secondary);">
+      Based on configured tariff (₹9.20/kWh)
+    </div>
+  </div>
+
+  <!-- Card 3: Rooms Requiring Investigation -->
+  <div class="glass-panel kpi-card" style="padding: 1.5rem; position: relative; overflow: hidden;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <span class="kpi-title" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">Flagged Rooms</span>
+        <div class="kpi-value" id="kpi-flagged-rooms" style="font-size: 2rem; font-weight: 800; color: #fff; margin-top: 0.5rem; font-family: var(--font-heading);">
+          -- <span style="font-size: 1.1rem; color: var(--text-muted); font-weight: 500;">Rooms</span>
+        </div>
+      </div>
+      <div class="kpi-icon-badge" style="background: rgba(244, 63, 94, 0.12); color: var(--accent-rose); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        🔍
+      </div>
+    </div>
+    <div class="kpi-subtext" style="margin-top: 0.85rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
+      <span id="kpi-critical-rooms" class="badge badge-critical" style="font-size: 0.72rem;">0 Critical</span>
+      <span id="kpi-warning-rooms" class="badge badge-warning" style="font-size: 0.72rem;">0 Warning</span>
+    </div>
+  </div>
+
+  <!-- Card 4: Estimated Potential Savings -->
+  <div class="glass-panel kpi-card" style="padding: 1.5rem; position: relative; overflow: hidden;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <span class="kpi-title" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">Potential Savings</span>
+        <div class="kpi-value" id="kpi-savings" style="font-size: 2rem; font-weight: 800; color: var(--accent-emerald); margin-top: 0.5rem; font-family: var(--font-heading);">
+          ₹--
+        </div>
+      </div>
+      <div class="kpi-icon-badge" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        💰
+      </div>
+    </div>
+    <div class="kpi-subtext" style="margin-top: 0.85rem; font-size: 0.8rem; color: var(--text-secondary);">
+      <span id="kpi-savings-kwh" style="color: var(--accent-emerald); font-weight: 600;">-- kWh</span> avoidable waste
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     2. SIMPLE ELECTRICITY USAGE CHART (Actual vs Expected Baseline)
+     ====================================================================== -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+    <div>
+      <h3 style="font-size: 1.25rem; font-weight: 700; color: #fff;">Electricity Consumption vs Expected Baseline</h3>
+      <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 0.2rem;">
+        Compares metered power draw with the AI expected baseline conditioned on room occupancy and ambient temperature.
+      </p>
+    </div>
+    <div style="font-size: 0.82rem; color: var(--text-secondary); display: flex; align-items: center; gap: 1.25rem;">
+      <span style="display: flex; align-items: center; gap: 0.4rem;">
+        <span style="width: 14px; height: 4px; background: #38bdf8; display: inline-block; border-radius: 2px;"></span> Actual (kW)
+      </span>
+      <span style="display: flex; align-items: center; gap: 0.4rem;">
+        <span style="width: 14px; height: 4px; background: #a855f7; display: inline-block; border-radius: 2px; border-bottom: 2px dashed #a855f7;"></span> Expected Baseline (kW)
+      </span>
+      <span style="display: flex; align-items: center; gap: 0.4rem;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #f43f5e; display: inline-block;"></span> Flagged Excursion
+      </span>
+    </div>
+  </div>
+  <div style="position: relative; height: 320px; width: 100%;">
+    <canvas id="simpleUsageChart"></canvas>
+  </div>
+</div>
+
+<!-- ======================================================================
+     3. PRIORITIZED LIST OF ROOMS NEEDING ATTENTION
+     ====================================================================== -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: #fff;">Prioritized Rooms Needing Attention</h3>
+        <span id="table-count-badge" class="badge badge-normal" style="font-size: 0.75rem;">-- Flagged</span>
+      </div>
+      <p style="font-size: 0.84rem; color: var(--text-secondary); margin-top: 0.2rem;">
+        Ranked by severity and excess power divergence. Staff should inspect high-priority rooms first.
+      </p>
+    </div>
+
+    <!-- Quick Filters -->
+    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+      <select class="select-custom" id="table-filter-severity" onchange="loadFlaggedRooms()" style="font-size: 0.82rem; padding: 0.4rem 0.8rem;">
+        <option value="all">All Severities</option>
+        <option value="CRITICAL">Critical Only</option>
+        <option value="HIGH">Warning / High</option>
+      </select>
+      <select class="select-custom" id="table-filter-status" onchange="loadFlaggedRooms()" style="font-size: 0.82rem; padding: 0.4rem 0.8rem;">
+        <option value="all">All Statuses</option>
+        <option value="pending" selected>Pending Investigation</option>
+        <option value="investigating">Under Investigation</option>
+        <option value="resolved">Resolved</option>
+      </select>
+      <a href="{{ url_for('views.investigation') }}" class="btn btn-secondary btn-sm" style="font-size: 0.82rem;">
+        Full Detective View &rarr;
+      </a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="custom-table" id="flagged-rooms-table">
+      <thead>
+        <tr>
+          <th>Block & Room</th>
+          <th>Actual vs Expected</th>
+          <th>Occupancy Status</th>
+          <th>Severity & Reason</th>
+          <th>Recommended Action</th>
+          <th>Status</th>
+          <th>Investigation</th>
+        </tr>
+      </thead>
+      <tbody id="flagged-rooms-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            Loading rooms requiring attention...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

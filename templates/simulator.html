@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}What-If Simulator — Hostel Energy AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">What-If Campus Energy Simulator</h1>
+    <p class="page-subtitle">Interactive scenario modeling for energy conservation measures, tiered billing impact, carbon abatement, and payback periods.</p>
+  </div>
+  <div>
+    <button class="btn btn-emerald btn-sm" onclick="runSimulation()">Recalculate Projections</button>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 1.5rem; align-items: start;">
+  
+  <!-- Left Column: Interactive Levers -->
+  <div class="glass-panel" style="padding: 1.5rem;">
+    <h3 style="font-size: 1.15rem; margin-bottom: 0.25rem;">Energy Conservation Measures (ECMs)</h3>
+    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Adjust parameters to model quantitative campus savings.</p>
+
+    <!-- Lever 1: Vacant Room Cutoff -->
+    <div class="slider-container">
+      <div class="slider-label-group">
+        <span>Vacant Room Smart Cutoff</span>
+        <span class="slider-val" id="val-empty-cutoff">60%</span>
+      </div>
+      <input type="range" class="custom-range" id="input-empty-cutoff" min="0" max="100" value="60" oninput="updateSliderVal('empty-cutoff', this.value, '%')">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">Automated power cut during class hours (09:00-16:00)</div>
+    </div>
+
+    <!-- Lever 2: LED Retrofit -->
+    <div class="slider-container">
+      <div class="slider-label-group">
+        <span>Corridor & Room LED Retrofit</span>
+        <span class="slider-val" id="val-led-retrofit">80%</span>
+      </div>
+      <input type="range" class="custom-range" id="input-led-retrofit" min="0" max="100" value="80" oninput="updateSliderVal('led-retrofit', this.value, '%')">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">Conversion from T8 fluorescents to 18W smart dimming LEDs</div>
+    </div>
+
+    <!-- Lever 3: ESP32 Fan Eco Regulation -->
+    <div class="slider-container">
+      <div class="slider-label-group">
+        <span>ESP32 Smart Fan Automation</span>
+        <span class="slider-val" id="val-fan-eco">75%</span>
+      </div>
+      <input type="range" class="custom-range" id="input-fan-eco" min="0" max="100" value="75" oninput="updateSliderVal('fan-eco', this.value, '%')">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">Adaptive duty-cycle regulation based on thermal comfort curve</div>
+    </div>
+
+    <!-- Lever 4: Rooftop Solar PV -->
+    <div class="slider-container">
+      <div class="slider-label-group">
+        <span>Rooftop Solar PV Capacity</span>
+        <span class="slider-val" id="val-solar-kwp">20 kWp</span>
+      </div>
+      <input type="range" class="custom-range" id="input-solar-kwp" min="0" max="50" step="5" value="20" oninput="updateSliderVal('solar-kwp', this.value, ' kWp')">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">On-campus clean generation offset (~120 kWh/kWp/mo)</div>
+    </div>
+
+    <!-- Toggles Row -->
+    <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+        <div>
+          <strong style="font-size: 0.88rem; color: #fff;">Curfew Common Area Cutoff</strong>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Shut down TV rooms & study ACs between 01:00-05:30 AM</div>
+        </div>
+        <input type="checkbox" id="toggle-curfew" checked onchange="runSimulation()" style="width: 18px; height: 18px; accent-color: var(--accent-cyan); cursor: pointer;">
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <strong style="font-size: 0.88rem; color: #fff;">Geyser Timer Automation</strong>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Schedule hot water (05:30-09:00 AM) to curb reheat cycles</div>
+        </div>
+        <input type="checkbox" id="toggle-geysers" checked onchange="runSimulation()" style="width: 18px; height: 18px; accent-color: var(--accent-cyan); cursor: pointer;">
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Projected Impact & Financials -->
+  <div>
+    <!-- Projected KPIs -->
+    <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.5rem;">
+      <div class="glass-panel kpi-card">
+        <span class="kpi-title">Monthly Energy Saved</span>
+        <div class="kpi-value" style="color: var(--accent-emerald);" id="sim-kwh-saved">-- <span style="font-size: 1rem; color: var(--text-secondary);">kWh</span></div>
+        <div class="kpi-subtext" id="sim-pct-saved">--% reduction</div>
+      </div>
+
+      <div class="glass-panel kpi-card">
+        <span class="kpi-title">Annual Cost Saved</span>
+        <div class="kpi-value" style="color: #fff;" id="sim-annual-cost">₹--</div>
+        <div class="kpi-subtext" id="sim-monthly-cost">₹-- saved / month</div>
+      </div>
+
+      <div class="glass-panel kpi-card">
+        <span class="kpi-title">CO₂ Abated</span>
+        <div class="kpi-value" style="color: var(--accent-cyan);" id="sim-co2-tonnes">-- <span style="font-size: 1rem; color: var(--text-secondary);">T/yr</span></div>
+        <div class="kpi-subtext" id="sim-monthly-co2">-- kg CO₂e / mo</div>
+      </div>
+    </div>
+
+    <!-- Capex & Payback Summary -->
+    <div class="glass-panel" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; background: rgba(6, 182, 212, 0.05); border-color: rgba(6, 182, 212, 0.2);">
+      <div>
+        <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-secondary);">Estimated Implementation Capex</span>
+        <h4 style="font-size: 1.3rem; color: #fff;" id="sim-capex">₹--</h4>
+      </div>
+      <div>
+        <span style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-secondary);">Simple Payback Period</span>
+        <h4 style="font-size: 1.3rem; color: var(--accent-emerald);" id="sim-payback">-- Months</h4>
+      </div>
+      <div>
+        <span class="badge badge-low">High Feasibility</span>
+      </div>
+    </div>
+
+    <!-- Comparison Chart: Baseline vs Simulated by Block -->
+    <div class="glass-panel chart-card" style="margin-bottom: 1.5rem;">
+      <div class="chart-header">
+        <div class="chart-title-group">
+          <h3>Hostel Block Impact Comparison</h3>
+          <p>Current Baseline vs Simulated Monthly Energy (kWh)</p>
+        </div>
+      </div>
+      <div style="position: relative; height: 250px;">
+        <canvas id="simComparisonChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ECM Contribution Components -->
+    <div class="glass-panel" style="padding: 1.5rem;">
+      <h4 style="font-size: 1rem; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
+        Simulated Measure Contribution Breakdown
+      </h4>
+      <div id="ecm-components-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/simulator.js') }}"></script>
+{% endblock %}
