@@ -30,39 +30,150 @@
     </div>
   </div>
 
-  <!-- Manual Reset Action for Isolated Room -->
+  <!-- Header Action Info -->
   <div style="display: flex; gap: 0.75rem; align-items: center;">
-    {% if room.relay_state == 'TRIPPED_SIMULATED' or room.room_state == 'TRIPPED_SIMULATED' %}
-    <button class="btn btn-emerald btn-sm" onclick="resetThisRoom('{{ room.room_id }}')" style="font-weight: 700;">
-      ✓ Reset Simulated Cutoff
-    </button>
-    {% else %}
-    <button class="btn btn-secondary btn-sm" onclick="triggerTestTrip('{{ room.room_id }}')">
-      Test Cutoff Simulation
-    </button>
-    {% endif %}
+    <span class="safety-badge" style="background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; font-size: 0.72rem;">
+      🔒 SIMULATION MODE — REAL HARDWARE RELAYS DISABLED
+    </span>
   </div>
 </div>
 
-<!-- Prominent Simulated Trip Banner if Tripped -->
-{% if room.relay_state == 'TRIPPED_SIMULATED' %}
-<div class="glass-panel" style="padding: 1.25rem 1.5rem; margin-bottom: 2rem; background: rgba(239, 68, 68, 0.12); border: 2px solid rgba(239, 68, 68, 0.5);">
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-    <div style="display: flex; gap: 0.85rem; align-items: center;">
-      <span style="font-size: 2rem;">🛑</span>
+<!-- ======================================================================
+     DEDICATED ROOM MAIN SWITCH CONTROL PANEL (Simulation Benchmark)
+     ====================================================================== -->
+<div id="room-switch-panel" class="switch-panel {{ 'is-on' if room.effective_switch_state == 'ON' else 'is-off' }}" style="margin-bottom: 2rem;">
+  <!-- Panel Top Bar -->
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem;">
+    <div style="display: flex; align-items: center; gap: 0.65rem;">
+      <span style="font-size: 1.4rem;">⚡</span>
       <div>
-        <h3 style="color: #f87171; font-size: 1.15rem; font-weight: 800;">SIMULATED POWER CUTOFF ACTIVE FOR THIS ROOM</h3>
-        <p style="font-size: 0.85rem; color: #fecdd3; line-height: 1.4; margin-top: 0.2rem;">
-          {{ room.trip_reason | default('Room power remained above configured limit. Simulated cutoff relay opened. All other hostel rooms remain energized.') }}
+        <h2 style="font-size: 1.25rem; font-weight: 800; color: #fff; margin: 0;">Room Main Switch Control</h2>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">
+          Isolated software-simulated mains control • Room {{ room.room_number }} ({{ room.block_id }})
         </p>
       </div>
     </div>
-    <button class="btn btn-emerald" onclick="resetThisRoom('{{ room.room_id }}')">
-      Restore Simulated Power &rarr;
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+      <span class="badge badge-normal" style="font-size: 0.7rem; font-family: var(--font-mono);">
+        Node: ESP32-SIM-{{ room.room_id.replace('-', '') }}
+      </span>
+      <button class="btn btn-secondary btn-sm" onclick="refreshSwitchPanelData('{{ room.room_id }}')" title="Fetch Latest State">
+        ↻ Refresh State
+      </button>
+    </div>
+  </div>
+
+  <!-- Big Visual ON/OFF Status Indicator -->
+  <div id="switch-indicator-box" class="switch-indicator-box {{ 'on' if room.effective_switch_state == 'ON' else 'off' }}">
+    <div id="switch-bulb-icon" class="switch-bulb {{ 'on' if room.effective_switch_state == 'ON' else 'off' }}">
+      <span id="bulb-symbol">{{ '⚡' if room.effective_switch_state == 'ON' else '🛑' }}</span>
+    </div>
+    <div style="flex: 1;">
+      <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+        <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600;">
+          Simulated Main Switch State
+        </span>
+        <span id="switch-lock-badge" class="badge badge-critical" style="display: {{ 'inline-flex' if room.manual_off_lock == 1 else 'none' }}; font-size: 0.68rem;">
+          🔒 MANUAL OFF LOCK ACTIVE
+        </span>
+      </div>
+      <div id="switch-state-text" style="font-size: 1.65rem; font-weight: 800; color: {{ 'var(--accent-emerald)' if room.effective_switch_state == 'ON' else '#f87171' }}; font-family: var(--font-heading); margin-top: 0.15rem;">
+        SIMULATED SWITCH {{ room.effective_switch_state }}
+      </div>
+      <div id="switch-sub-status" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.15rem;">
+        {% if room.effective_switch_state == 'ON' %}
+        Circuit energized • Operating within safe operational limit ({{ room.power_w }} W)
+        {% elif room.manual_off_lock == 1 %}
+        Warden manually disconnected circuit. Automatic restoration blocked until lock is released.
+        {% else %}
+        Simulated cutoff active: {{ room.trip_reason | default('Safety trip rule triggered.') }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Telemetry & Metadata Grid -->
+  <div class="ctrl-meta-grid">
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Room Identifier</div>
+      <div class="ctrl-meta-val" id="meta-room-id">{{ room.block_id }} / {{ room.room_number }} <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">({{ room.room_id }})</span></div>
+    </div>
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Current Real Power</div>
+      <div class="ctrl-meta-val" style="color: {{ '#f87171' if room.power_w > room.threshold_w else 'var(--accent-cyan)' }};">
+        <span id="meta-power-w">{{ room.power_w }}</span> W <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(Limit {{ room.threshold_w }} W)</span>
+      </div>
+    </div>
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Trip / Operational Status</div>
+      <div class="ctrl-meta-val" id="meta-room-state">{{ room.room_state }}</div>
+    </div>
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Last Action Initiated By</div>
+      <div class="ctrl-meta-val" id="meta-last-by" style="color: var(--accent-amber);">{{ room.last_switch_by | default('System Initializer') }}</div>
+    </div>
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Action Timestamp</div>
+      <div class="ctrl-meta-val" id="meta-last-at" style="font-family: var(--font-mono); font-size: 0.82rem;">{{ room.last_switch_at | default(room.last_update) }}</div>
+    </div>
+    <div class="ctrl-meta-item">
+      <div class="ctrl-meta-label">Manual Lock Status</div>
+      <div class="ctrl-meta-val" id="meta-lock-status" style="color: {{ '#f87171' if room.manual_off_lock == 1 else 'var(--accent-emerald)' }};">
+        {{ '🔒 LOCKED (Auto-Restore Disabled)' if room.manual_off_lock == 1 else '✓ UNLOCKED' }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Fault / Trip Reason Display -->
+  <div style="background: rgba(15, 23, 42, 0.55); border-radius: 8px; padding: 0.75rem 1rem; border-left: 3px solid {{ '#f87171' if room.effective_switch_state == 'OFF' else 'var(--accent-cyan)' }}; margin-bottom: 1.25rem;">
+    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Latest Fault / Trip Reason:</div>
+    <div id="meta-trip-reason" style="font-size: 0.88rem; color: #f1f5f9; margin-top: 0.2rem; line-height: 1.45;">
+      {{ room.trip_reason | default('No active fault recorded. Room operating normally.') }}
+    </div>
+  </div>
+
+  <!-- Blocked Manual ON Warning Box (Visible when ON request is blocked) -->
+  <div id="ctrl-blocked-alert" class="ctrl-blocked-box" style="display: {{ 'flex' if not room.can_switch_on and room.effective_switch_state == 'OFF' else 'none' }};">
+    <span style="font-size: 1.3rem;">⛔</span>
+    <div>
+      <strong style="color: #fff; font-size: 0.88rem;">Manual ON Blocked by Safety Policy</strong>
+      <p id="ctrl-blocked-msg" style="margin-top: 0.2rem; line-height: 1.4; color: #fecdd3;">
+        {{ room.switch_on_block_reason | default('Active safety condition or manual lock prevents energizing.') }}
+      </p>
+    </div>
+  </div>
+
+  <!-- Live Action Feedback Alert Box -->
+  <div id="ctrl-feedback-alert" style="display: none; padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.86rem; line-height: 1.4;"></div>
+
+  <!-- Action Controls Row -->
+  <div style="display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap;">
+    <!-- Control 1: MANUAL OFF -->
+    <button id="btn-manual-off" class="btn btn-rose" onclick="confirmManualOff('{{ room.room_id }}')" {{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if room.effective_switch_state == 'OFF' and room.manual_off_lock == 1 else '' }}>
+      ⏻ MANUAL OFF
+    </button>
+
+    <!-- Control 2: MANUAL ON -->
+    <button id="btn-manual-on" class="btn btn-emerald" onclick="confirmManualOn('{{ room.room_id }}')" {{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if room.effective_switch_state == 'ON' else '' }}>
+      ⏻ MANUAL ON
+    </button>
+
+    <!-- Control 3: PROBLEM RESOLVED / ACKNOWLEDGE FAULT -->
+    <button id="btn-problem-resolved" class="btn btn-cyan" onclick="openProblemResolvedModal('{{ room.room_id }}')">
+      🛡️ PROBLEM RESOLVED / ACK FAULT
+    </button>
+
+    <!-- Control 4: RELEASE MANUAL OFF LOCK -->
+    <button id="btn-release-lock" class="btn btn-amber" onclick="confirmReleaseLock('{{ room.room_id }}')" style="display: {{ 'inline-flex' if room.manual_off_lock == 1 else 'none' }};">
+      🔓 RELEASE MANUAL OFF LOCK
+    </button>
+
+    <!-- Test Cutoff Simulator shortcut -->
+    <button class="btn btn-secondary btn-sm" onclick="triggerTestTrip('{{ room.room_id }}')" style="margin-left: auto;">
+      🧪 Trigger NILM Trip Test
     </button>
   </div>
 </div>
-{% endif %}
 
 <!-- Live Measurements Grid (Available fields strictly checked) -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
@@ -231,27 +342,134 @@
 
     <!-- Recent Trip Events for This Room -->
     <div class="glass-panel" style="padding: 1.5rem;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">Room Event History</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin: 0;">Switch & Trip Activity Timeline</h3>
+        <span class="badge badge-normal" style="font-size: 0.68rem;">Audited Log</span>
+      </div>
       
-      <div id="room-events-list" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 380px; overflow-y: auto;">
+      <div id="room-events-list" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 440px; overflow-y: auto;">
         {% if room.events %}
           {% for ev in room.events %}
-          <div style="background: rgba(15, 23, 42, 0.5); padding: 0.65rem 0.85rem; border-radius: 6px; font-size: 0.78rem; border-left: 3px solid {{ '#f87171' if 'TRIP' in ev.event_type else 'var(--accent-cyan)' }};">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
-              <strong style="color: #fff;">{{ ev.event_type }}</strong>
-              <span style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.7rem;">{{ ev.timestamp.split(' ')[1] if ' ' in ev.timestamp else ev.timestamp }}</span>
+          {% set b_color = 'var(--accent-cyan)' %}
+          {% if 'OFF' in ev.event_type or 'REJ' in ev.event_type or 'TRIP' in ev.event_type %}
+            {% set b_color = '#f87171' %}
+          {% elif 'ON' in ev.event_type or 'RESTORE' in ev.event_type or 'RESET' in ev.event_type %}
+            {% set b_color = 'var(--accent-emerald)' %}
+          {% elif 'RESOLVED' in ev.event_type %}
+            {% set b_color = 'var(--accent-cyan)' %}
+          {% elif 'LOCK' in ev.event_type %}
+            {% set b_color = 'var(--accent-amber)' %}
+          {% endif %}
+          <div style="background: rgba(15, 23, 42, 0.55); padding: 0.75rem 0.9rem; border-radius: 6px; font-size: 0.8rem; border-left: 3px solid {{ b_color }};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <span class="badge" style="font-size: 0.68rem; padding: 0.15rem 0.5rem; background: rgba(255, 255, 255, 0.05); color: {{ b_color }}; border: 1px solid {{ b_color }};">
+                {{ ev.event_type }}
+              </span>
+              <span style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.7rem;">
+                {{ ev.timestamp }}
+              </span>
             </div>
-            <div style="color: var(--text-secondary); line-height: 1.35;">
+            <div style="color: #f1f5f9; line-height: 1.4; margin-top: 0.2rem;">
               {{ ev.explanation }}
             </div>
+            {% if ev.action_taken %}
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem; font-style: italic;">
+              Action: {{ ev.action_taken }}
+            </div>
+            {% endif %}
           </div>
           {% endfor %}
         {% else %}
           <div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; padding: 1.5rem;">
-            No logged events for this room yet.
+            No logged switch or trip events for this room yet.
           </div>
         {% endif %}
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     MODAL 1: CONFIRM SWITCH ACTION (MANUAL OFF, MANUAL ON, RELEASE LOCK)
+     ====================================================================== -->
+<div id="modal-confirm-action" class="modal-overlay">
+  <div class="modal-container" style="max-width: 520px; padding: 2rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <span id="modal-action-icon" style="font-size: 2rem;">⚡</span>
+      <div>
+        <h3 id="modal-action-title" style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 0;">Confirm Action</h3>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0;">Hostel Room Mains Protection Console</p>
+      </div>
+    </div>
+
+    <div id="modal-action-body" style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 1.25rem; background: rgba(0,0,0,0.25); padding: 1rem; border-radius: 8px;">
+      Action description text goes here.
+    </div>
+
+    <div style="margin-bottom: 1.25rem;">
+      <label style="display: block; font-size: 0.76rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-bottom: 0.35rem;">
+        Responsible Operator / Warden
+      </label>
+      <input type="text" id="modal-operator-input" class="select-custom" value="Hostel Warden" style="width: 100%; font-size: 0.88rem; padding: 0.55rem 0.85rem;">
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-confirm-action')">Cancel</button>
+      <button id="modal-action-confirm-btn" class="btn btn-primary btn-sm" style="font-weight: 700;">Confirm Action</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     MODAL 2: PROBLEM RESOLVED / ACKNOWLEDGE FAULT
+     ====================================================================== -->
+<div id="modal-problem-resolved" class="modal-overlay">
+  <div class="modal-container" style="max-width: 580px; padding: 2rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <span style="font-size: 2.2rem;">🛡️</span>
+      <div>
+        <h3 style="font-size: 1.3rem; font-weight: 800; color: #fff; margin: 0;">Problem Resolved / Acknowledge Fault</h3>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0;">
+          Room {{ room.block_id }} / {{ room.room_number }} • Safety Verification Step
+        </p>
+      </div>
+    </div>
+
+    <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; color: #cbd5e1; line-height: 1.45; margin-bottom: 1.25rem;">
+      <strong>Automatic Restoration Safety Workflow:</strong>
+      <ol style="margin-left: 1.2rem; margin-top: 0.35rem; font-size: 0.8rem; color: #94a3b8;">
+        <li>Confirm you have physically inspected the room and eliminated the dangerous appliance or fault.</li>
+        <li>Backend safety engine checks circuit telemetry and verifies no restoration blockers exist.</li>
+        <li>If all checks pass, the simulated main switch automatically restores to ON (unless Manual OFF lock is engaged).</li>
+      </ol>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 0.76rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-bottom: 0.35rem;">
+        Warden / Electrician Name
+      </label>
+      <input type="text" id="modal-resolve-operator" class="select-custom" value="Hostel Warden" style="width: 100%; font-size: 0.88rem; padding: 0.55rem 0.85rem;">
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 0.76rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-bottom: 0.35rem;">
+        Investigation Findings & Corrective Action Taken
+      </label>
+      <textarea id="modal-resolve-notes" class="select-custom" rows="3" style="width: 100%; font-size: 0.86rem; padding: 0.55rem 0.85rem; resize: vertical;" placeholder="e.g. Physically inspected room, unplugged unauthorized 1500W room heater, checked 15A socket wiring and confirmed circuit safe."></textarea>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 6px;">
+      <input type="checkbox" id="modal-hazard-cleared" checked style="width: 18px; height: 18px; accent-color: var(--accent-cyan); cursor: pointer;">
+      <label for="modal-hazard-cleared" style="font-size: 0.82rem; color: #f1f5f9; cursor: pointer;">
+        I confirm that the safety hazard has been resolved and the room is safe to re-energize.
+      </label>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-problem-resolved')">Cancel</button>
+      <button id="modal-resolve-submit-btn" class="btn btn-cyan btn-sm" onclick="submitProblemResolved('{{ room.room_id }}')" style="font-weight: 700;">
+        Confirm Resolution & Restore &rarr;
+      </button>
     </div>
   </div>
 </div>
@@ -261,8 +479,16 @@
 <script>
   const currentRoomData = {
     room_id: "{{ room.room_id }}",
+    block_id: "{{ room.block_id }}",
+    room_number: "{{ room.room_number }}",
     power_w: {{ room.power_w }},
-    threshold_w: {{ room.threshold_w }}
+    threshold_w: {{ room.threshold_w }},
+    switch_state: "{{ room.switch_state }}",
+    effective_switch_state: "{{ room.effective_switch_state }}",
+    manual_off_lock: {{ room.manual_off_lock }},
+    fault_status: "{{ room.fault_status }}",
+    can_switch_on: {{ 'true' if room.can_switch_on else 'false' }},
+    switch_on_block_reason: "{{ room.switch_on_block_reason }}"
   };
 </script>
 <script src="{{ url_for('static', filename='js/room_detail.js') }}"></script>

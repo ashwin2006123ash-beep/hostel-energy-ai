@@ -38,6 +38,7 @@
       <select id="grid-filter-state" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
         <option value="all">All Room States</option>
         <option value="NORMAL">NORMAL (Green)</option>
+        <option value="MANUAL_OFF">MANUAL OFF (Locked)</option>
         <option value="HIGH_USAGE">HIGH USAGE (Amber)</option>
         <option value="ANOMALY_DETECTED">ANOMALY DETECTED</option>
         <option value="TRIP_PENDING">TRIP PENDING</option>
@@ -47,7 +48,17 @@
       </select>
     </div>
 
-    <div style="min-width: 160px;">
+    <div style="min-width: 170px;">
+      <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Simulated Main Switch</label>
+      <select id="grid-filter-switch" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
+        <option value="all">All Switch States</option>
+        <option value="ON">⚡ Switch ON (Green)</option>
+        <option value="OFF">🛑 Switch OFF / Tripped (Red)</option>
+        <option value="LOCKED">🔒 Manual OFF Lock Only</option>
+      </select>
+    </div>
+
+    <div style="min-width: 150px;">
       <label style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Occupancy State</label>
       <select id="grid-filter-occupancy" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
         <option value="all">All Occupancies</option>

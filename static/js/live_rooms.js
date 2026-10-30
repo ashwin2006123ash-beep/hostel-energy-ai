@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function() {
 async function loadLiveRoomsGrid() {
   const block = document.getElementById("grid-filter-block").value;
   const state = document.getElementById("grid-filter-state").value;
+  const switchFilter = document.getElementById("grid-filter-switch") ? document.getElementById("grid-filter-switch").value : "all";
   const occupancy = document.getElementById("grid-filter-occupancy").value;
   const container = document.getElementById("live-rooms-grid");
   if (!container) return;
@@ -21,6 +22,7 @@ async function loadLiveRoomsGrid() {
     let url = `/api/rooms/live?`;
     if (block !== "all") url += `&block_id=${block}`;
     if (state !== "all") url += `&room_state=${state}`;
+    if (switchFilter !== "all") url += `&switch_state=${switchFilter}`;
     if (occupancy !== "all") url += `&occupancy_state=${occupancy}`;
 
     const res = await fetch(url);
@@ -47,7 +49,8 @@ function onGridSearch() {
     return (r.room_id || "").toLowerCase().includes(query) ||
            (r.room_number || "").toLowerCase().includes(query) ||
            (r.block_id || "").toLowerCase().includes(query) ||
-           (r.room_state || "").toLowerCase().includes(query);
+           (r.room_state || "").toLowerCase().includes(query) ||
+           (r.effective_switch_state || "").toLowerCase().includes(query);
   });
   renderRoomCards(filtered);
 }
@@ -68,17 +71,29 @@ function renderRoomCards(rooms) {
   let html = "";
   rooms.forEach(r => {
     const isTripped = r.room_state === "TRIPPED_SIMULATED";
+    const isManualLocked = r.manual_off_lock === 1;
+    const isSwitchOn = (r.effective_switch_state || "ON") === "ON";
+
+    // Main Switch Indicator Badge
+    let switchBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.7rem;">⚡ SWITCH ON</span>`;
+    if (isManualLocked) {
+      switchBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.45); font-size: 0.7rem;">🔒 SWITCH OFF (LOCKED)</span>`;
+    } else if (!isSwitchOn) {
+      switchBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 0.7rem;">🛑 SWITCH OFF (TRIPPED)</span>`;
+    }
     
     // Status Badge
     let stateBadge = `<span class="badge badge-state-normal">● NORMAL</span>`;
     if (r.room_state === "TRIPPED_SIMULATED") {
-      stateBadge = `<span class="badge badge-state-trip">🛑 TRIPPED — SIMULATION ONLY</span>`;
+      stateBadge = `<span class="badge badge-state-trip">🛑 TRIPPED</span>`;
+    } else if (r.room_state === "MANUAL_OFF") {
+      stateBadge = `<span class="badge" style="background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35);">⏻ MANUAL OFF</span>`;
     } else if (r.room_state === "TRIP_PENDING") {
       stateBadge = `<span class="badge badge-state-warning">⚠️ TRIP PENDING</span>`;
     } else if (r.room_state === "HIGH_USAGE") {
       stateBadge = `<span class="badge badge-state-warning">⚡ HIGH USAGE</span>`;
     } else if (r.room_state === "ANOMALY_DETECTED") {
-      stateBadge = `<span class="badge badge-state-warning">🔍 ANOMALY DETECTED</span>`;
+      stateBadge = `<span class="badge badge-state-warning">🔍 ANOMALY</span>`;
     } else if (r.room_state === "SENSOR_OFFLINE") {
       stateBadge = `<span class="badge badge-state-offline">● SENSOR OFFLINE</span>`;
     } else if (r.room_state === "DATA_STALE") {
@@ -94,7 +109,7 @@ function renderRoomCards(rooms) {
     }
 
     html += `
-      <a href="/rooms/${r.room_id}" class="room-card ${isTripped ? 'is-tripped' : ''}">
+      <a href="/rooms/${r.room_id}" class="room-card ${(!isSwitchOn || isTripped) ? 'is-tripped' : ''}">
         <div>
           <!-- Header -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.85rem;">
@@ -106,7 +121,8 @@ function renderRoomCards(rooms) {
                 ${r.room_number} <span style="font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-mono);">(${r.room_id})</span>
               </h3>
             </div>
-            <div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem;">
+              ${switchBadge}
               ${stateBadge}
             </div>
           </div>
@@ -115,7 +131,7 @@ function renderRoomCards(rooms) {
           <div style="display: flex; gap: 0.45rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
             ${occBadge}
             <span style="font-size: 0.74rem; color: var(--text-muted); font-family: var(--font-mono);">
-              Relay: <strong style="color: ${r.relay_state === 'TRIPPED_SIMULATED' ? '#f87171' : 'var(--accent-emerald)'};">${r.relay_state}</strong>
+              Relay: <strong style="color: ${r.relay_state === 'TRIPPED_SIMULATED' ? '#f87171' : (r.relay_state === 'OPEN_MANUAL' ? '#fbbf24' : 'var(--accent-emerald)')};">${r.relay_state}</strong>
             </span>
           </div>
 
@@ -151,10 +167,10 @@ function renderRoomCards(rooms) {
           </div>
         </div>
 
-        <!-- Footer: Sensor update timestamp & link prompt -->
+        <!-- Footer: Switch action & Sensor update timestamp -->
         <div style="border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.74rem; color: var(--text-muted);">
-          <span>Sensor: <strong>${r.sensor_status}</strong></span>
-          <span style="color: var(--accent-cyan); font-weight: 600;">Control &rarr;</span>
+          <span>By: <strong style="color: #cbd5e1;">${(r.last_switch_by || 'System').split(' ')[0]}</strong></span>
+          <span style="color: var(--accent-cyan); font-weight: 600;">Main Switch Control &rarr;</span>
         </div>
       </a>
     `;

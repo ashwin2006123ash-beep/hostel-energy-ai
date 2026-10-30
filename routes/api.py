@@ -1063,7 +1063,13 @@ def get_live_rooms():
     block_id = request.args.get("block_id")
     room_state = request.args.get("room_state")
     occupancy_state = request.args.get("occupancy_state")
-    rooms = _room_mgr.get_all_rooms(block_id=block_id, room_state=room_state, occupancy_state=occupancy_state)
+    switch_state = request.args.get("switch_state")
+    rooms = _room_mgr.get_all_rooms(
+        block_id=block_id,
+        room_state=room_state,
+        occupancy_state=occupancy_state,
+        switch_state=switch_state
+    )
     return jsonify({
         "status": "success",
         "count": len(rooms),
@@ -1077,6 +1083,79 @@ def get_single_room(room_id):
     if not room:
         return jsonify({"status": "error", "message": f"Room {room_id} not found."}), 404
     return jsonify({"status": "success", "room": room})
+
+@api_bp.route("/rooms/<room_id>/switch-state", methods=["GET"])
+def get_room_switch_state(room_id):
+    room = _room_mgr.get_room_by_id(room_id)
+    if not room:
+        return jsonify({"status": "error", "message": f"Room {room_id} not found."}), 404
+    return jsonify({
+        "status": "success",
+        "room_id": room["room_id"],
+        "block_id": room["block_id"],
+        "room_number": room["room_number"],
+        "switch_state": room["switch_state"],
+        "effective_switch_state": room["effective_switch_state"],
+        "manual_off_lock": room["manual_off_lock"],
+        "fault_status": room["fault_status"],
+        "power_w": room["power_w"],
+        "room_state": room["room_state"],
+        "relay_state": room["relay_state"],
+        "trip_reason": room["trip_reason"],
+        "last_switch_by": room["last_switch_by"],
+        "last_switch_at": room["last_switch_at"],
+        "resolution_confirmed_by": room["resolution_confirmed_by"],
+        "resolution_confirmed_at": room["resolution_confirmed_at"],
+        "resolution_notes": room["resolution_notes"],
+        "can_switch_on": room["can_switch_on"],
+        "switch_on_block_reason": room["switch_on_block_reason"],
+        "restoration_eligible": room["restoration_eligible"],
+        "events": room.get("events", [])
+    })
+
+@api_bp.route("/rooms/<room_id>/switch-off", methods=["POST"])
+def manual_room_switch_off(room_id):
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    reason = data.get("reason")
+    result = _room_mgr.manual_switch_off(room_id, operator=operator, reason=reason)
+    if not result.get("success"):
+        return jsonify(result), result.get("code", 400)
+    return jsonify(result)
+
+@api_bp.route("/rooms/<room_id>/switch-on", methods=["POST"])
+def manual_room_switch_on(room_id):
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    result = _room_mgr.manual_switch_on(room_id, operator=operator)
+    if not result.get("success"):
+        return jsonify(result), result.get("code", 400)
+    return jsonify(result)
+
+@api_bp.route("/rooms/<room_id>/release-lock", methods=["POST"])
+def release_room_manual_lock(room_id):
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    result = _room_mgr.release_manual_lock(room_id, operator=operator)
+    if not result.get("success"):
+        return jsonify(result), result.get("code", 400)
+    return jsonify(result)
+
+@api_bp.route("/rooms/<room_id>/problem-resolved", methods=["POST"])
+def resolve_room_problem(room_id):
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    notes = data.get("resolution_notes", "")
+    fault_cleared = data.get("fault_cleared", True)
+    result = _room_mgr.resolve_room_fault(
+        room_id,
+        operator=operator,
+        resolution_notes=notes,
+        fault_cleared=fault_cleared
+    )
+    if not result.get("success"):
+        return jsonify(result), result.get("code", 400)
+    return jsonify(result)
 
 @api_bp.route("/rooms/<room_id>/reset-trip", methods=["POST"])
 def reset_room_trip(room_id):

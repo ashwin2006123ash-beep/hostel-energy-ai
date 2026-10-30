@@ -244,8 +244,55 @@ def init_db(db_path=None):
         trip_reason TEXT DEFAULT '',
         persistence_minutes INTEGER DEFAULT 0,
         last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        data_source TEXT DEFAULT 'simulation'
+        data_source TEXT DEFAULT 'simulation',
+        switch_state TEXT DEFAULT 'ON',
+        effective_switch_state TEXT DEFAULT 'ON',
+        manual_off_lock INTEGER DEFAULT 0,
+        fault_status TEXT DEFAULT 'NONE',
+        last_switch_by TEXT DEFAULT 'System Initializer',
+        last_switch_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolution_confirmed_by TEXT DEFAULT '',
+        resolution_confirmed_at TEXT DEFAULT '',
+        resolution_notes TEXT DEFAULT '',
+        restoration_eligible INTEGER DEFAULT 1
     );
+    """)
+
+    # Migration check for rooms table existing columns
+    cursor.execute("PRAGMA table_info(rooms)")
+    room_cols = [c[1] for c in cursor.fetchall()]
+    if "switch_state" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN switch_state TEXT DEFAULT 'ON'")
+    if "effective_switch_state" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN effective_switch_state TEXT DEFAULT 'ON'")
+    if "manual_off_lock" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN manual_off_lock INTEGER DEFAULT 0")
+    if "fault_status" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN fault_status TEXT DEFAULT 'NONE'")
+    if "last_switch_by" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN last_switch_by TEXT DEFAULT 'System Initializer'")
+    if "last_switch_at" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN last_switch_at TEXT DEFAULT ''")
+        cursor.execute("UPDATE rooms SET last_switch_at = CURRENT_TIMESTAMP WHERE last_switch_at = ''")
+    if "resolution_confirmed_by" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN resolution_confirmed_by TEXT DEFAULT ''")
+    if "resolution_confirmed_at" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN resolution_confirmed_at TEXT DEFAULT ''")
+    if "resolution_notes" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN resolution_notes TEXT DEFAULT ''")
+    if "restoration_eligible" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN restoration_eligible INTEGER DEFAULT 1")
+
+    # Synchronize initial switch state for rooms that are in a tripped state
+    cursor.execute("""
+        UPDATE rooms
+        SET switch_state = 'OFF',
+            effective_switch_state = 'OFF',
+            fault_status = 'ACTIVE_FAULT',
+            restoration_eligible = 0,
+            last_switch_by = 'Auto-Trip Protection Engine'
+        WHERE (room_state = 'TRIPPED_SIMULATED' OR relay_state = 'TRIPPED_SIMULATED')
+          AND (switch_state IS NULL OR switch_state = 'ON')
     """)
 
     # 9. Room Trip & Anomaly Events Table
@@ -286,6 +333,8 @@ def init_db(db_path=None):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_anomalies_status ON anomalies(status);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_block ON rooms(block_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_state ON rooms(room_state);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_switch_state ON rooms(switch_state);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rooms_effective_state ON rooms(effective_switch_state);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_id, timestamp);")
 
     conn.commit()
@@ -405,6 +454,17 @@ def seed_rooms(db_path=None):
                 empty_threshold_w, trip_reason, persistence_minutes, data_source
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, rooms_data)
+        
+        # Synchronize initial switch state for rooms seeded as tripped
+        cursor.execute("""
+            UPDATE rooms
+            SET switch_state = 'OFF',
+                effective_switch_state = 'OFF',
+                fault_status = 'ACTIVE_FAULT',
+                restoration_eligible = 0,
+                last_switch_by = 'Auto-Trip Protection Engine'
+            WHERE (room_state = 'TRIPPED_SIMULATED' OR relay_state = 'TRIPPED_SIMULATED')
+        """)
         
         # Seed initial sample events
         events = [

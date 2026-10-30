@@ -27,7 +27,9 @@ async function loadCommandCenterData() {
     if (anomEl) anomEl.innerText = data.active_anomalies;
 
     const tripEl = document.getElementById("stat-simulated-trips");
-    if (tripEl) tripEl.innerText = data.simulated_trips;
+    if (tripEl) {
+      tripEl.innerHTML = `${data.simulated_trips} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">(${data.rooms_switched_off || 0} OFF)</span>`;
+    }
 
     const wattsEl = document.getElementById("campus-live-watts");
     if (wattsEl) wattsEl.innerText = `${(data.campus_live_watts || 0).toLocaleString()} W`;
@@ -72,12 +74,24 @@ function renderAttentionRooms(rooms) {
       stateBadge = `<span class="safety-badge" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;">🛑 TRIPPED — SIMULATION ONLY</span>`;
       borderCol = "rgba(239, 68, 68, 0.6)";
       isTripped = true;
+    } else if (r.room_state === "MANUAL_OFF") {
+      stateBadge = `<span class="badge" style="background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); font-size: 0.7rem;">⏻ MANUAL OFF</span>`;
+      borderCol = "rgba(244, 63, 94, 0.6)";
+      isTripped = true;
     } else if (r.room_state === "TRIP_PENDING") {
       stateBadge = `<span class="badge badge-critical">⚠️ TRIP PENDING</span>`;
       borderCol = "rgba(239, 68, 68, 0.4)";
     } else if (r.room_state === "SENSOR_OFFLINE") {
       stateBadge = `<span class="badge badge-normal" style="background: rgba(100, 116, 139, 0.2); color: #94a3b8;">SENSOR OFFLINE</span>`;
       borderCol = "rgba(100, 116, 139, 0.4)";
+    }
+
+    // Switch state pill
+    let switchBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.68rem; border: 1px solid rgba(16, 185, 129, 0.4);">⚡ SWITCH ON</span>`;
+    if (r.manual_off_lock === 1) {
+      switchBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; font-size: 0.68rem; border: 1px solid rgba(245, 158, 11, 0.45);">🔒 SWITCH OFF (LOCKED)</span>`;
+    } else if (r.effective_switch_state === "OFF") {
+      switchBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.18); color: #f87171; font-size: 0.68rem; border: 1px solid rgba(239, 68, 68, 0.5);">🛑 SWITCH OFF</span>`;
     }
 
     // Occupancy styling
@@ -90,8 +104,9 @@ function renderAttentionRooms(rooms) {
       <div class="glass-panel" style="padding: 1.25rem 1.5rem; border-left: 4px solid ${borderCol}; background: ${isTripped ? 'rgba(239, 68, 68, 0.04)' : 'var(--bg-card)'};">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
           <div>
-            <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
               <h4 style="font-size: 1.15rem; font-weight: 700; color: #fff;">${r.block_id} / ${r.room_number}</h4>
+              ${switchBadge}
               ${stateBadge}
               ${occBadge}
             </div>
