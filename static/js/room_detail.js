@@ -419,10 +419,65 @@ async function refreshSwitchPanelData(roomId, updateChart = false) {
       btnRelease.style.display = isManualLocked ? "inline-flex" : "none";
     }
 
-    // 5. Timeline Updates
+    // 5. Optimization Console Metrics & State Sync
+    const optBadge = document.getElementById("opt-state-badge");
+    if (optBadge && data.optimization_state) {
+      optBadge.innerText = data.optimization_state;
+      let badgeClass = "normal";
+      if (data.optimization_state === "OPTIMIZED") badgeClass = "optimized";
+      else if (data.optimization_state === "OPTIMIZATION_PARTIAL") badgeClass = "partial";
+      else if (data.optimization_state === "OPTIMIZATION_FAILED") badgeClass = "failed";
+      else if (data.optimization_state === "TRIPPED_CRITICAL") badgeClass = "critical";
+      else if (data.optimization_state === "HIGH_USAGE") badgeClass = "warning";
+      optBadge.className = `badge badge-state-${badgeClass}`;
+    }
+
+    const dispMax = document.getElementById("disp-max-threshold");
+    if (dispMax && data.threshold_w !== undefined) dispMax.innerText = data.threshold_w;
+
+    const dispTarget = document.getElementById("disp-opt-target");
+    if (dispTarget && data.optimization_target_w !== undefined) dispTarget.innerText = data.optimization_target_w;
+
+    const dispExcess = document.getElementById("disp-excess-w");
+    if (dispExcess && data.excess_power_w !== undefined) {
+      dispExcess.innerText = data.excess_power_w;
+      dispExcess.style.color = data.excess_power_w > 0 ? "#f87171" : "var(--text-muted)";
+    }
+
+    const dispReq = document.getElementById("disp-reduction-req");
+    if (dispReq && data.reduction_required_w !== undefined) {
+      dispReq.innerText = data.reduction_required_w;
+      dispReq.style.color = data.reduction_required_w > 0 ? "var(--accent-amber)" : "var(--accent-emerald)";
+    }
+
+    // Savings impact figures
+    const impactW = document.getElementById("opt-impact-w");
+    if (impactW && data.savings_w !== undefined) impactW.innerText = `${data.savings_w} W`;
+
+    const impactKwh = document.getElementById("opt-impact-kwh");
+    if (impactKwh && data.savings_kwh !== undefined) impactKwh.innerText = `${data.savings_kwh} kWh`;
+
+    const impactInr = document.getElementById("opt-impact-inr");
+    if (impactInr && data.savings_inr !== undefined) impactInr.innerText = `₹${data.savings_inr}`;
+
+    // Optimization button guard
+    const btnOpt = document.getElementById("btn-run-optimization");
+    if (btnOpt) {
+      const disableOpt = !isEffectiveOn || isManualLocked || data.is_offline;
+      btnOpt.disabled = disableOpt;
+      btnOpt.style.opacity = disableOpt ? "0.5" : "1";
+      btnOpt.style.cursor = disableOpt ? "not-allowed" : "pointer";
+    }
+
+    // Render loads if available
+    if (data.controllable_loads && data.controllable_loads.length > 0) {
+      renderControllableLoads(data.controllable_loads);
+    }
+
+    // 6. Timeline Updates
     renderEventsTimeline(data.events || []);
 
-    // 6. Update chart if requested
+    // 7. Update chart if requested
     if (updateChart && roomChartInstance) {
       const len = roomChartInstance.data.datasets[0].data.length;
       if (len > 0) {
@@ -561,3 +616,162 @@ async function triggerTestTrip(roomId) {
     console.error("Failed to trigger trip:", e);
   }
 }
+
+// ============================================================================
+// Load-Level Power Optimization Console Handlers
+// ============================================================================
+
+function renderControllableLoads(loads) {
+  const container = document.getElementById("controllable-loads-container");
+  if (!container || !Array.isArray(loads)) return;
+
+  let html = "";
+  loads.forEach(load => {
+    let stateColor = "var(--accent-emerald)";
+    let stateBg = "rgba(16, 185, 129, 0.15)";
+    if (load.state === "OFF") {
+      stateColor = "#f87171";
+      stateBg = "rgba(239, 68, 68, 0.15)";
+    } else if (load.state === "THROTTLED") {
+      stateColor = "var(--accent-amber)";
+      stateBg = "rgba(245, 158, 11, 0.15)";
+    }
+
+    const isEssential = !!load.essential;
+
+    html += `
+      <div class="load-chip ${isEssential ? 'is-essential' : ''}" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.4rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="color: #fff; font-size: 0.86rem;">${load.name || load.id}</strong>
+          <span class="badge" style="font-size: 0.65rem; background: ${stateBg}; color: ${stateColor}; border: 1px solid ${stateColor};">
+            ${load.state}
+          </span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-secondary);">
+          <span>Rated: <strong>${load.rated_w} W</strong></span>
+          <span>Current: <strong style="color: ${load.effective_w > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${load.effective_w} W</strong></span>
+        </div>
+        <div style="font-size: 0.7rem; color: ${isEssential ? 'var(--accent-cyan)' : 'var(--text-muted)'}; margin-top: 0.1rem;">
+          ${isEssential ? '🛡️ Protected (Never automatically disconnected)' : '⚡ Controllable (Eligible for optimization shedding)'}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function showOptFeedback(msg, type = "success") {
+  const el = document.getElementById("opt-feedback-alert");
+  if (!el) return;
+
+  el.style.display = "block";
+  if (type === "success") {
+    el.style.background = "rgba(16, 185, 129, 0.15)";
+    el.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+    el.style.color = "#a7f3d0";
+  } else if (type === "warning") {
+    el.style.background = "rgba(245, 158, 11, 0.15)";
+    el.style.border = "1px solid rgba(245, 158, 11, 0.4)";
+    el.style.color = "#fde68a";
+  } else {
+    el.style.background = "rgba(239, 68, 68, 0.15)";
+    el.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+    el.style.color = "#fecdd3";
+  }
+
+  el.innerHTML = msg;
+
+  if (type === "success") {
+    setTimeout(() => {
+      if (el) el.style.display = "none";
+    }, 8000);
+  }
+}
+
+async function runRoomPowerOptimization(roomId) {
+  const btn = document.getElementById("btn-run-optimization");
+  const origText = btn ? btn.innerText : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "Evaluating Controllable Loads...";
+  }
+
+  try {
+    const res = await fetch(`/api/rooms/${roomId}/optimize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operator: "Hostel Warden" })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      const outcome = result.outcome || {};
+      const status = outcome.status || "OPTIMIZED";
+      let alertType = "success";
+      let summaryText = "";
+
+      if (status === "OPTIMIZED") {
+        summaryText = `🌱 <strong>Optimization Target Reached!</strong> Shed ${outcome.power_reduction_w || 0} W (Resulting Power: ${outcome.resulting_power_w} W, Target: ${outcome.target_w} W). Estimated hourly savings: ₹${outcome.savings_inr} (${outcome.savings_kwh} kWh).`;
+      } else if (status === "OPTIMIZATION_PARTIAL") {
+        alertType = "warning";
+        summaryText = `⚠️ <strong>Partial Optimization:</strong> Reduced ${outcome.power_reduction_w || 0} W to ${outcome.resulting_power_w} W, but could not safely reach the full ${outcome.target_w} W target without shedding essential lighting.`;
+      } else if (status === "OPTIMIZATION_FAILED") {
+        alertType = "error";
+        summaryText = `❌ <strong>Optimization Failed:</strong> No eligible controllable loads could be shed safely to achieve the ${outcome.target_w} W target.`;
+      } else {
+        summaryText = result.message || "Optimization executed.";
+      }
+
+      showOptFeedback(summaryText, alertType);
+      await refreshSwitchPanelData(roomId, true);
+    } else {
+      const errMsg = result.error || result.message || "Optimization could not be completed.";
+      showOptFeedback(`⛔ ${errMsg}`, "error");
+      await refreshSwitchPanelData(roomId, false);
+    }
+  } catch (e) {
+    console.error("Optimization failed:", e);
+    showOptFeedback("Network error executing power optimization.", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = origText;
+    }
+  }
+}
+
+async function setQuickTarget(roomId, targetW) {
+  try {
+    const res = await fetch(`/api/rooms/${roomId}/target`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_w: targetW })
+    });
+    const result = await res.json();
+    if (result.success) {
+      showOptFeedback(`✓ Preferred Optimization Target updated to <strong>${targetW} W</strong>. Reduction required recalculated.`, "success");
+      await refreshSwitchPanelData(roomId, false);
+    } else {
+      showOptFeedback(`⛔ ${result.error || 'Failed to update target'}`, "error");
+    }
+  } catch (e) {
+    console.error("Failed to update target:", e);
+    showOptFeedback("Error updating optimization target.", "error");
+  }
+}
+
+function promptCustomTarget(roomId) {
+  const currentTarget = document.getElementById("disp-opt-target") ? document.getElementById("disp-opt-target").innerText : "800";
+  const input = prompt(`Enter new Preferred Optimization Target in Watts for ${roomId} (e.g. 700 to 1100 W):`, currentTarget);
+  if (!input) return;
+
+  const val = parseFloat(input.trim());
+  if (isNaN(val) || val <= 0) {
+    alert("Please enter a valid positive number for the optimization target.");
+    return;
+  }
+
+  setQuickTarget(roomId, val);
+}
+

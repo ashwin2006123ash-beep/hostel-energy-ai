@@ -30,6 +30,12 @@ def create_app(config_class=Config):
             print("Database not found on startup. Initializing and seeding...")
             from seed_all import populate_database_and_models
             populate_database_and_models()
+        
+        # Start Live Power Simulator loop (single authoritative background thread)
+        # Avoid starting during tests or in Werkzeug reloader parent process
+        if not app.config.get("TESTING") and (not os.environ.get("WERKZEUG_RUN_MAIN") or os.environ.get("WERKZEUG_RUN_MAIN") == "true"):
+            from services.live_power_simulator import live_simulator
+            live_simulator.start()
 
     return app
 

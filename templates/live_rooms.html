@@ -20,6 +20,46 @@
   </div>
 </div>
 
+<!-- Live Power Simulation Control Bar -->
+<div class="glass-panel" style="padding: 1rem 1.25rem; margin-bottom: 1.25rem; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.18);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <!-- Left: Status & Update Ticker -->
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Simulation Loop:</span>
+        <span id="sim-status-badge" class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.74rem;">
+          <span style="display: inline-block; width: 6px; height: 6px; background: #34d399; border-radius: 50%; margin-right: 4px;"></span>
+          RUNNING (10s Cycle)
+        </span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.45rem; background: rgba(0, 0, 0, 0.35); padding: 0.35rem 0.75rem; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08);">
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Next simulated update:</span>
+        <strong id="sim-countdown-ticker" style="font-size: 0.82rem; color: var(--accent-cyan); font-family: var(--font-mono);">~10s</strong>
+      </div>
+
+      <div style="font-size: 0.76rem; color: var(--text-secondary);">
+        Simulated cycles: <strong id="sim-cycle-count" style="color: #fff;">0</strong>
+      </div>
+    </div>
+
+    <!-- Right: Simulation Controls -->
+    <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+      <button id="sim-toggle-pause-btn" class="btn btn-secondary btn-sm" onclick="toggleSimulationPause()" style="font-size: 0.75rem; display: flex; align-items: center; gap: 0.35rem;">
+        <span id="sim-toggle-icon">⏸</span> <span id="sim-toggle-text">Pause Simulation</span>
+      </button>
+
+      <button class="btn btn-secondary btn-sm" onclick="stepSimulationNow()" style="font-size: 0.75rem; display: flex; align-items: center; gap: 0.35rem;" title="Force one 10-second simulation step immediately">
+        <span>⚡</span> <span>Step Now</span>
+      </button>
+
+      <button class="btn btn-secondary btn-sm" onclick="confirmResetSimulation()" style="font-size: 0.75rem; color: #f87171; border-color: rgba(239, 68, 68, 0.35); display: flex; align-items: center; gap: 0.35rem;" title="Reset demo simulation rooms to baseline without clearing history">
+        <span>↺</span> <span>Reset Simulation</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Filters Bar -->
 <div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1.75rem;">
   <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -38,10 +78,14 @@
       <select id="grid-filter-state" class="select-custom" onchange="loadLiveRoomsGrid()" style="width: 100%;">
         <option value="all">All Room States</option>
         <option value="NORMAL">NORMAL (Green)</option>
+        <option value="OPTIMIZED">OPTIMIZED (Target Met)</option>
+        <option value="HIGH_USAGE">HIGH USAGE (Above Max)</option>
+        <option value="OPTIMIZATION_PARTIAL">OPTIMIZATION PARTIAL</option>
+        <option value="OPTIMIZATION_FAILED">OPTIMIZATION FAILED</option>
         <option value="MANUAL_OFF">MANUAL OFF (Locked)</option>
-        <option value="HIGH_USAGE">HIGH USAGE (Amber)</option>
         <option value="ANOMALY_DETECTED">ANOMALY DETECTED</option>
         <option value="TRIP_PENDING">TRIP PENDING</option>
+        <option value="TRIPPED_CRITICAL">TRIPPED — CRITICAL / SAFETY (Red)</option>
         <option value="TRIPPED_SIMULATED">TRIPPED — SIMULATION ONLY (Red)</option>
         <option value="SENSOR_OFFLINE">SENSOR OFFLINE</option>
         <option value="DATA_STALE">DATA STALE</option>

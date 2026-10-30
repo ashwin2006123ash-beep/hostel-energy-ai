@@ -16,12 +16,22 @@
         {{ room.block_id }} / {{ room.room_number }}
       </h1>
       <span id="room-detail-state-badge">
-        {% if room.room_state == 'TRIPPED_SIMULATED' %}
-        <span class="safety-badge">🛑 TRIPPED — SIMULATION ONLY</span>
-        {% elif room.room_state == 'TRIP_PENDING' %}
-        <span class="badge badge-critical">⚠️ TRIP PENDING</span>
-        {% elif room.room_state == 'HIGH_USAGE' %}
+        {% if room.optimization_state == 'TRIPPED_CRITICAL' or room.room_state == 'TRIPPED_SIMULATED' %}
+        <span class="badge badge-critical">🛑 TRIPPED — CRITICAL PROTECTION</span>
+        {% elif room.optimization_state == 'OPTIMIZED' %}
+        <span class="badge badge-state-optimized">🌱 OPTIMIZED (TARGET MET)</span>
+        {% elif room.optimization_state == 'OPTIMIZATION_PARTIAL' %}
+        <span class="badge badge-state-partial">⚠️ PARTIAL OPTIMIZATION</span>
+        {% elif room.optimization_state == 'OPTIMIZING_SIMULATION' %}
+        <span class="badge badge-warning">⚙️ OPTIMIZING SIMULATION...</span>
+        {% elif room.optimization_state == 'OPTIMIZATION_FAILED' %}
+        <span class="badge badge-state-failed">❌ OPTIMIZATION FAILED</span>
+        {% elif room.effective_switch_state == 'OFF' and room.manual_off_lock == 1 %}
+        <span class="badge badge-state-manual-off">🔒 MANUAL OFF</span>
+        {% elif room.room_state == 'HIGH_USAGE' or room.optimization_state == 'HIGH_USAGE' %}
         <span class="badge badge-warning">⚡ HIGH USAGE</span>
+        {% elif room.is_offline %}
+        <span class="badge badge-normal" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">📡 SENSOR OFFLINE</span>
         {% else %}
         <span class="badge badge-state-normal">● NORMAL</span>
         {% endif %}
@@ -172,6 +182,152 @@
     <button class="btn btn-secondary btn-sm" onclick="triggerTestTrip('{{ room.room_id }}')" style="margin-left: auto;">
       🧪 Trigger NILM Trip Test
     </button>
+  </div>
+</div>
+
+<!-- ======================================================================
+     POWER OPTIMIZATION & LOAD MANAGEMENT CONSOLE (Target-Based Shedding)
+     ====================================================================== -->
+<div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem; border-color: rgba(6, 182, 212, 0.35); background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.6) 100%);">
+  <!-- Console Header -->
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+    <div style="display: flex; align-items: center; gap: 0.65rem;">
+      <span style="font-size: 1.5rem;">🌱</span>
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <h2 style="font-size: 1.2rem; font-weight: 800; color: #fff; margin: 0;">Power Optimization & Controllable Loads</h2>
+          <span id="opt-state-badge" class="badge badge-state-{{ 'optimized' if room.optimization_state == 'OPTIMIZED' else ('partial' if room.optimization_state == 'OPTIMIZATION_PARTIAL' else ('failed' if room.optimization_state == 'OPTIMIZATION_FAILED' else ('normal' if room.optimization_state == 'NORMAL' else 'warning'))) }}" style="font-size: 0.72rem;">
+            {{ room.optimization_state }}
+          </span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.15rem 0 0 0;">
+          Target-driven load shedding & throttling to prevent routine high-usage trips. Keeps critical safety protection intact.
+        </p>
+      </div>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+      <button id="btn-run-optimization" class="btn btn-primary" onclick="runRoomPowerOptimization('{{ room.room_id }}')" style="font-weight: 700; box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);" {{ 'disabled style="opacity: 0.5; cursor: not-allowed;"' if room.effective_switch_state == 'OFF' and room.manual_off_lock == 1 else '' }}>
+        ⚡ Run Power Optimization
+      </button>
+    </div>
+  </div>
+
+  <!-- Threshold vs Target & Calculations Metric Bar -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <!-- Metric 1: Maximum Permitted Threshold -->
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem; text-align: center;">
+      <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Max Permitted Limit</div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: #f59e0b; margin-top: 0.2rem; font-family: var(--font-heading);">
+        <span id="disp-max-threshold">{{ room.threshold_w }}</span> <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">W</span>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.25rem;">
+        Trip prevention boundary
+      </div>
+    </div>
+
+    <!-- Metric 2: Preferred Optimization Target (with editor) -->
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 8px; padding: 1rem; text-align: center; position: relative;">
+      <div style="font-size: 0.72rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700;">Optimization Target</div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald); margin-top: 0.2rem; font-family: var(--font-heading);">
+        <span id="disp-opt-target">{{ room.optimization_target_w }}</span> <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">W</span>
+      </div>
+      <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center; margin-top: 0.45rem;">
+        <button class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="setQuickTarget('{{ room.room_id }}', 800)">800 W</button>
+        <button class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="setQuickTarget('{{ room.room_id }}', 900)">900 W</button>
+        <button class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="setQuickTarget('{{ room.room_id }}', 1000)">1000 W</button>
+        <button class="btn btn-cyan btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="promptCustomTarget('{{ room.room_id }}')">✎ Edit</button>
+      </div>
+    </div>
+
+    <!-- Metric 3: Excess Above Maximum (power - threshold) -->
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem; text-align: center;">
+      <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Excess Above Limit</div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: {{ '#f87171' if room.excess_power_w > 0 else 'var(--text-muted)' }}; margin-top: 0.2rem; font-family: var(--font-heading);">
+        <span id="disp-excess-w">{{ room.excess_power_w }}</span> <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">W</span>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.25rem;">
+        (Measured − Max Limit)
+      </div>
+    </div>
+
+    <!-- Metric 4: Reduction Required to Reach Target (power - target) -->
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1rem; text-align: center;">
+      <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Reduction Required</div>
+      <div style="font-size: 1.6rem; font-weight: 800; color: {{ 'var(--accent-amber)' if room.reduction_required_w > 0 else 'var(--accent-emerald)' }}; margin-top: 0.2rem; font-family: var(--font-heading);">
+        <span id="disp-reduction-req">{{ room.reduction_required_w }}</span> <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">W</span>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.25rem;">
+        (Measured − Optimization Target)
+      </div>
+    </div>
+  </div>
+
+  <!-- Optimization Feedback Message Area -->
+  <div id="opt-feedback-alert" style="display: none; padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.86rem; line-height: 1.45;"></div>
+
+  <!-- Controllable Loads Architecture (Load Level Simulation Model) -->
+  <div style="background: rgba(15, 23, 42, 0.55); border-radius: 8px; padding: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+      <div>
+        <h4 style="font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0;">
+          Simulated Appliance Loads Model
+        </h4>
+        <span style="font-size: 0.75rem; color: var(--text-secondary);">
+          Mathematical load model for simulated room shedding. Essential loads (lighting) remain protected.
+        </span>
+      </div>
+      <span class="badge badge-normal" style="font-size: 0.68rem; font-family: var(--font-mono);">Simulation Model • Isolated</span>
+    </div>
+
+    <div id="controllable-loads-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem;">
+      {% if room.controllable_loads %}
+        {% for load in room.controllable_loads %}
+        <div class="load-chip {{ 'is-essential' if load.essential else '' }}" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.4rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="color: #fff; font-size: 0.86rem;">{{ load.name }}</strong>
+            <span class="badge" style="font-size: 0.65rem; background: {{ 'rgba(16, 185, 129, 0.15)' if load.state == 'ON' else ('rgba(245, 158, 11, 0.15)' if load.state == 'THROTTLED' else 'rgba(239, 68, 68, 0.15)') }}; color: {{ 'var(--accent-emerald)' if load.state == 'ON' else ('var(--accent-amber)' if load.state == 'THROTTLED' else '#f87171') }}; border: 1px solid {{ 'var(--accent-emerald)' if load.state == 'ON' else ('var(--accent-amber)' if load.state == 'THROTTLED' else '#f87171') }};">
+              {{ load.state }}
+            </span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-secondary);">
+            <span>Rated: <strong>{{ load.rated_w | default(load.power_w | default(0.0)) }} W</strong></span>
+            <span>Current: <strong style="color: {{ 'var(--accent-cyan)' if (load.effective_w | default(load.power_w | default(0.0))) > 0 else 'var(--text-muted)' }};">{{ load.effective_w | default(load.power_w | default(0.0)) }} W</strong></span>
+          </div>
+          <div style="font-size: 0.7rem; color: {{ 'var(--accent-cyan)' if load.essential else 'var(--text-muted)' }}; margin-top: 0.1rem;">
+            {{ '🛡️ Protected (Never automatically disconnected)' if load.essential else '⚡ Controllable (Eligible for optimization shedding)' }}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="color: var(--text-muted); font-size: 0.8rem; padding: 0.5rem;">Loading simulated appliances...</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Savings & Impact Estimation Footer Bar -->
+  <div id="optimization-savings-banner" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.3rem;">📊</span>
+      <div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--accent-emerald);">Savings Impact Engine (Integrated Model)</div>
+        <div style="font-size: 0.75rem; color: #94a3b8;">Energy reduction calculated: kWh = Power Reduction (W) × Duration (hr) / 1000 @ ₹9.20/kWh tariff.</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 1.5rem; align-items: center; font-size: 0.82rem;">
+      <div>
+        <span style="color: var(--text-muted); font-size: 0.72rem; display: block;">POWER SHED</span>
+        <strong id="opt-impact-w" style="color: var(--accent-cyan); font-size: 1rem;">{{ room.events[0].savings_w | default(0.0) if room.events else 0.0 }} W</strong>
+      </div>
+      <div>
+        <span style="color: var(--text-muted); font-size: 0.72rem; display: block;">HOURLY ENERGY</span>
+        <strong id="opt-impact-kwh" style="color: var(--accent-emerald); font-size: 1rem;">{{ room.events[0].savings_kwh | default(0.0) if room.events else 0.0 }} kWh</strong>
+      </div>
+      <div>
+        <span style="color: var(--text-muted); font-size: 0.72rem; display: block;">COST SAVED</span>
+        <strong id="opt-impact-inr" style="color: #fde68a; font-size: 1rem;">₹{{ room.events[0].savings_inr | default(0.0) if room.events else 0.0 }}</strong>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -483,6 +639,10 @@
     room_number: "{{ room.room_number }}",
     power_w: {{ room.power_w }},
     threshold_w: {{ room.threshold_w }},
+    optimization_target_w: {{ room.optimization_target_w }},
+    excess_power_w: {{ room.excess_power_w }},
+    reduction_required_w: {{ room.reduction_required_w }},
+    optimization_state: "{{ room.optimization_state }}",
     switch_state: "{{ room.switch_state }}",
     effective_switch_state: "{{ room.effective_switch_state }}",
     manual_off_lock: {{ room.manual_off_lock }},

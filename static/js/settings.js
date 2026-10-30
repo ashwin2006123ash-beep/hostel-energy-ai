@@ -26,12 +26,24 @@ async function saveSettings(event) {
 
   const emptyVal = document.getElementById("set-empty-threshold").value.trim();
   const highVal = document.getElementById("set-high-power-threshold").value.trim();
+  const targetVal = document.getElementById("set-optimization-target") ? document.getElementById("set-optimization-target").value.trim() : "800.0";
+  const tolVal = document.getElementById("set-optimization-tolerance") ? document.getElementById("set-optimization-tolerance").value.trim() : "50.0";
+  const critVal = document.getElementById("set-critical-safety-threshold") ? document.getElementById("set-critical-safety-threshold").value.trim() : "2400.0";
+  const stabVal = document.getElementById("set-stability-check-seconds") ? document.getElementById("set-stability-check-seconds").value.trim() : "60";
   const pVal = document.getElementById("set-persistence").value.trim();
   const gVal = document.getElementById("set-geyser").value.trim();
 
   // 1. Client-Side Validation
   if (!highVal || isNaN(highVal) || Number(highVal) <= 0) {
     showSettingsFeedback("error", "Maximum Room Power Limit must be a positive number greater than 0 W.");
+    return;
+  }
+  if (!targetVal || isNaN(targetVal) || Number(targetVal) <= 0) {
+    showSettingsFeedback("error", "Default Optimization Target must be a positive number greater than 0 W.");
+    return;
+  }
+  if (Number(targetVal) >= Number(highVal)) {
+    showSettingsFeedback("error", `Preferred Optimization Target (${targetVal} W) must be strictly lower than Maximum Power Limit (${highVal} W).`);
     return;
   }
   if (!emptyVal || isNaN(emptyVal) || Number(emptyVal) < 0) {
@@ -52,6 +64,10 @@ async function saveSettings(event) {
     daytime_end: document.getElementById("set-daytime-end").value.trim(),
     empty_room_threshold_w: emptyVal,
     high_power_threshold_w: highVal,
+    default_optimization_target_w: targetVal,
+    optimization_tolerance_w: tolVal,
+    critical_safety_threshold_w: critVal,
+    stability_check_seconds: stabVal,
     persistence_window_min: pVal,
     geyser_persistence_min: gVal,
     real_hardware_relay_enabled: "0" // Safety lock permanently kept at 0
@@ -67,7 +83,7 @@ async function saveSettings(event) {
     if (res.ok && result.status === "success") {
       showSettingsFeedback(
         "success",
-        `Operational policies synchronized! Maximum Room Power Limit is now set to <strong>${payload.high_power_threshold_w} W</strong> (Vacant standby: <strong>${payload.empty_room_threshold_w} W</strong>). Live Room cards and detection engines have been updated.`
+        `Operational policies synchronized! Maximum Limit: <strong>${payload.high_power_threshold_w} W</strong>, Optimization Target: <strong>${payload.default_optimization_target_w} W</strong> (Tolerance: ±${payload.optimization_tolerance_w} W, Critical Trip: ${payload.critical_safety_threshold_w} W). Live Room cards and optimization engines have been updated.`
       );
     } else {
       showSettingsFeedback("error", result.message || "Failed to update configuration.");

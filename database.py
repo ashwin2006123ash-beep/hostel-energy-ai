@@ -254,7 +254,16 @@ def init_db(db_path=None):
         resolution_confirmed_by TEXT DEFAULT '',
         resolution_confirmed_at TEXT DEFAULT '',
         resolution_notes TEXT DEFAULT '',
-        restoration_eligible INTEGER DEFAULT 1
+        restoration_eligible INTEGER DEFAULT 1,
+        optimization_target_w REAL DEFAULT 800.0,
+        excess_power_w REAL DEFAULT 0.0,
+        optimization_state TEXT DEFAULT 'NORMAL',
+        last_optimization_at TEXT DEFAULT '',
+        simulated_loads_json TEXT DEFAULT '',
+        previous_power_w REAL DEFAULT 0.0,
+        power_change_w REAL DEFAULT 0.0,
+        power_change_pct REAL DEFAULT 0.0,
+        simulation_profile TEXT DEFAULT 'NORMAL_OCCUPIED'
     );
     """)
 
@@ -282,6 +291,24 @@ def init_db(db_path=None):
         cursor.execute("ALTER TABLE rooms ADD COLUMN resolution_notes TEXT DEFAULT ''")
     if "restoration_eligible" not in room_cols:
         cursor.execute("ALTER TABLE rooms ADD COLUMN restoration_eligible INTEGER DEFAULT 1")
+    if "optimization_target_w" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN optimization_target_w REAL DEFAULT 800.0")
+    if "excess_power_w" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN excess_power_w REAL DEFAULT 0.0")
+    if "optimization_state" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN optimization_state TEXT DEFAULT 'NORMAL'")
+    if "last_optimization_at" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN last_optimization_at TEXT DEFAULT ''")
+    if "simulated_loads_json" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN simulated_loads_json TEXT DEFAULT ''")
+    if "previous_power_w" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN previous_power_w REAL DEFAULT 0.0")
+    if "power_change_w" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN power_change_w REAL DEFAULT 0.0")
+    if "power_change_pct" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN power_change_pct REAL DEFAULT 0.0")
+    if "simulation_profile" not in room_cols:
+        cursor.execute("ALTER TABLE rooms ADD COLUMN simulation_profile TEXT DEFAULT 'NORMAL_OCCUPIED'")
 
     # Synchronize initial switch state for rooms that are in a tripped state
     cursor.execute("""
@@ -313,9 +340,28 @@ def init_db(db_path=None):
         action_taken TEXT NOT NULL,
         outcome TEXT DEFAULT 'Pending Review',
         simulated INTEGER DEFAULT 1,
+        target_w REAL DEFAULT 0.0,
+        resulting_power_w REAL DEFAULT 0.0,
+        savings_w REAL DEFAULT 0.0,
+        savings_kwh REAL DEFAULT 0.0,
+        savings_inr REAL DEFAULT 0.0,
         FOREIGN KEY (room_id) REFERENCES rooms(room_id)
     );
     """)
+
+    # Migration check for room_events table existing columns
+    cursor.execute("PRAGMA table_info(room_events)")
+    event_cols = [c[1] for c in cursor.fetchall()]
+    if "target_w" not in event_cols:
+        cursor.execute("ALTER TABLE room_events ADD COLUMN target_w REAL DEFAULT 0.0")
+    if "resulting_power_w" not in event_cols:
+        cursor.execute("ALTER TABLE room_events ADD COLUMN resulting_power_w REAL DEFAULT 0.0")
+    if "savings_w" not in event_cols:
+        cursor.execute("ALTER TABLE room_events ADD COLUMN savings_w REAL DEFAULT 0.0")
+    if "savings_kwh" not in event_cols:
+        cursor.execute("ALTER TABLE room_events ADD COLUMN savings_kwh REAL DEFAULT 0.0")
+    if "savings_inr" not in event_cols:
+        cursor.execute("ALTER TABLE room_events ADD COLUMN savings_inr REAL DEFAULT 0.0")
 
     # 10. System Threshold Settings Table
     cursor.execute("""
@@ -483,23 +529,26 @@ def seed_rooms(db_path=None):
     conn.close()
 
 def seed_system_settings(db_path=None):
-    """Seeds configurable operational energy thresholds and duration policies."""
+    """Seeds configurable operational energy thresholds, optimization targets, and duration policies."""
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM system_settings")
-    if cursor.fetchone()[0] == 0:
-        settings = [
-            ("daytime_start", "07:00", "Start of daytime energy policy window (HH:MM)"),
-            ("daytime_end", "18:00", "End of daytime energy policy window (HH:MM)"),
-            ("empty_room_threshold_w", "35.0", "Maximum permissible continuous wattage for vacant rooms (W)"),
-            ("high_power_threshold_w", "1200.0", "Maximum permissible room power before warning / trip simulation (W)"),
-            ("persistence_window_min", "15", "Minimum persistence duration required to trigger vacant-room simulated trip (minutes)"),
-            ("geyser_persistence_min", "45", "Continuous high-draw geyser limit before critical persistent alert (minutes)"),
-            ("data_freshness_limit_min", "30", "Sensor heartbeat timeout threshold before flagging DATA STALE (minutes)"),
-            ("real_hardware_relay_enabled", "0", "SAFETY LOCK: 0 = simulated relay cutoff only; physical hardware control disabled")
-        ]
-        cursor.executemany("INSERT INTO system_settings (key, value, description) VALUES (?, ?, ?)", settings)
-        conn.commit()
+    settings = [
+        ("daytime_start", "07:00", "Start of daytime energy policy window (HH:MM)"),
+        ("daytime_end", "18:00", "End of daytime energy policy window (HH:MM)"),
+        ("empty_room_threshold_w", "35.0", "Maximum permissible continuous wattage for vacant rooms (W)"),
+        ("high_power_threshold_w", "1200.0", "Maximum permissible room power before warning / trip simulation (W)"),
+        ("default_optimization_target_w", "800.0", "Default preferred optimization target for room power (W)"),
+        ("optimization_tolerance_w", "50.0", "Acceptable tolerance range around optimization target (W)"),
+        ("stability_check_seconds", "60", "Stability observation window duration for power optimization (seconds)"),
+        ("optimization_cooldown_min", "5", "Minimum interval between automated optimization runs per room (minutes)"),
+        ("critical_safety_threshold_w", "2400.0", "Critical circuit safety limit requiring emergency protective trip (W)"),
+        ("persistence_window_min", "15", "Minimum persistence duration required to trigger vacant-room simulated trip (minutes)"),
+        ("geyser_persistence_min", "45", "Continuous high-draw geyser limit before critical persistent alert (minutes)"),
+        ("data_freshness_limit_min", "30", "Sensor heartbeat timeout threshold before flagging DATA STALE (minutes)"),
+        ("real_hardware_relay_enabled", "0", "SAFETY LOCK: 0 = simulated relay cutoff only; physical hardware control disabled")
+    ]
+    cursor.executemany("INSERT OR IGNORE INTO system_settings (key, value, description) VALUES (?, ?, ?)", settings)
+    conn.commit()
     conn.close()
 
 if __name__ == "__main__":

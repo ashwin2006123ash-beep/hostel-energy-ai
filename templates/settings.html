@@ -74,7 +74,43 @@
     </div>
 
     <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
-      3. Persistence Timers & Sensor Freshness
+      3. Power Optimization Target & Threshold Policies
+    </h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Default Preferred Optimization Target (W)
+        </label>
+        <input type="number" step="10" id="set-optimization-target" class="select-custom" value="{{ settings.default_optimization_target_w | default('800.0') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Target power draw when load-shedding is applied (e.g. 800 W, 1000 W). Must be lower than Maximum Power Limit.</div>
+      </div>
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Optimization Tolerance Margin (W)
+        </label>
+        <input type="number" step="5" id="set-optimization-tolerance" class="select-custom" value="{{ settings.optimization_tolerance_w | default('50.0') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Allowable deviation around the target for stable status qualification.</div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Critical Safety Threshold (W)
+        </label>
+        <input type="number" step="50" id="set-critical-safety-threshold" class="select-custom" value="{{ settings.critical_safety_threshold_w | default('2400.0') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Severe electrical hazard trip limit (short circuit, severe overload) triggering immediate protective TRIPPED_CRITICAL.</div>
+      </div>
+      <div>
+        <label style="font-size: 0.78rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">
+          Stability Verification Window (Seconds)
+        </label>
+        <input type="number" step="5" id="set-stability-check-seconds" class="select-custom" value="{{ settings.stability_check_seconds | default('60') }}" style="width: 100%;" required>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Duration the simulated circuit must hold stable post-optimization before confirming OPTIMIZED.</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+      4. Persistence Timers & Sensor Freshness
     </h3>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.75rem;">
       <div>

@@ -46,20 +46,22 @@ def test_isolated_room_trip_and_reset():
 
 def test_nilm_scenarios():
     mgr = RoomManager()
-    
-    # Test Scenario 2: Unusual fan step
-    res2 = mgr.trigger_nilm_scenario(2, target_room_id="A-103")
-    assert res2["success"] is True
-    room2 = mgr.get_room_by_id("A-103")
-    assert room2["power_w"] == 135.0
-    assert room2["room_state"] == "ANOMALY_DETECTED"
+    try:
+        # Test Scenario 2: Unusual fan step
+        res2 = mgr.trigger_nilm_scenario(2, target_room_id="A-103")
+        assert res2["success"] is True
+        room2 = mgr.get_room_by_id("A-103")
+        assert room2["power_w"] == 135.0
+        assert room2["room_state"] == "ANOMALY_DETECTED"
 
-    # Test Scenario 7: Sensor disconnected
-    res7 = mgr.trigger_nilm_scenario(7, target_room_id="B-204")
-    assert res7["success"] is True
-    room7 = mgr.get_room_by_id("B-204")
-    assert room7["sensor_status"] == "OFFLINE"
-    assert room7["room_state"] == "SENSOR_OFFLINE"
+        # Test Scenario 7: Sensor disconnected
+        res7 = mgr.trigger_nilm_scenario(7, target_room_id="B-204")
+        assert res7["success"] is True
+        room7 = mgr.get_room_by_id("B-204")
+        assert room7["sensor_status"] == "OFFLINE"
+        assert room7["room_state"] == "SENSOR_OFFLINE"
+    finally:
+        mgr.reset_room_trip("A-103", operator="Test Cleanup")
 
 def test_settings_safety_lock():
     mgr = RoomManager()

@@ -1070,10 +1070,13 @@ def get_live_rooms():
         occupancy_state=occupancy_state,
         switch_state=switch_state
     )
+    from services.live_power_simulator import live_simulator
+    sim_status = live_simulator.get_status()
     return jsonify({
         "status": "success",
         "count": len(rooms),
         "rooms": rooms,
+        "simulation": sim_status,
         "disclaimer": Config.DISCLAIMER_TEXT
     })
 
@@ -1110,8 +1113,61 @@ def get_room_switch_state(room_id):
         "can_switch_on": room["can_switch_on"],
         "switch_on_block_reason": room["switch_on_block_reason"],
         "restoration_eligible": room["restoration_eligible"],
+        "optimization_target_w": room.get("optimization_target_w", 800.0),
+        "excess_power_w": room.get("excess_power_w", 0.0),
+        "reduction_required_w": room.get("reduction_required_w", 0.0),
+        "optimization_state": room.get("optimization_state", "NORMAL"),
+        "is_offline": room.get("is_offline", False),
+        "sensor_status": room.get("sensor_status", "ONLINE"),
+        "controllable_loads": room.get("controllable_loads", []),
         "events": room.get("events", [])
     })
+
+@api_bp.route("/rooms/<room_id>/optimize", methods=["POST"])
+def optimize_room_power_route(room_id):
+    data = request.get_json() or {}
+    operator = data.get("operator", "Warden (Power Optimizer)")
+    target_w = data.get("target_w")
+    if target_w is not None:
+        try:
+            target_w = float(target_w)
+        except (ValueError, TypeError):
+            return jsonify({"status": "error", "message": "Target wattage must be a valid numeric value."}), 400
+
+    result = _room_mgr.optimize_room_power(room_id, operator=operator, target_w=target_w)
+    status_code = result.get("code", 200) if not result.get("success") else 200
+    return jsonify(result), status_code
+
+@api_bp.route("/rooms/<room_id>/loads", methods=["GET", "POST"])
+def handle_room_loads(room_id):
+    if request.method == "POST":
+        data = request.get_json() or {}
+        loads = data.get("loads")
+        if not isinstance(loads, list):
+            return jsonify({"status": "error", "message": "Payload must contain a 'loads' list."}), 400
+        _room_mgr.save_room_controllable_loads(room_id, loads)
+        return jsonify({"status": "success", "room_id": room_id, "loads": loads, "message": "Simulated loads updated successfully."})
+    else:
+        loads = _room_mgr.get_room_controllable_loads(room_id)
+        return jsonify({"status": "success", "room_id": room_id, "loads": loads})
+
+@api_bp.route("/rooms/<room_id>/target", methods=["POST"])
+def update_room_target_route(room_id):
+    data = request.get_json() or {}
+    target_w = data.get("target_w")
+    threshold_w = data.get("threshold_w")
+    if target_w is None:
+        return jsonify({"status": "error", "message": "Missing 'target_w' field."}), 400
+    try:
+        t_val = float(target_w)
+        thresh_val = float(threshold_w) if threshold_w is not None else None
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Target and threshold must be numeric."}), 400
+
+    result = _room_mgr.update_room_target(room_id, target_w=t_val, threshold_w=thresh_val)
+    if not result.get("success"):
+        return jsonify(result), result.get("code", 400)
+    return jsonify(result)
 
 @api_bp.route("/rooms/<room_id>/switch-off", methods=["POST"])
 def manual_room_switch_off(room_id):
@@ -1202,6 +1258,30 @@ def handle_system_settings():
             except (ValueError, TypeError):
                 return jsonify({"status": "error", "message": "Maximum Room Power Limit must be a valid numeric value."}), 400
 
+        # Validate Preferred Optimization Target (W)
+        if "default_optimization_target_w" in data:
+            val = data["default_optimization_target_w"]
+            if val is not None and str(val).strip() != "":
+                try:
+                    t_val = float(val)
+                    if t_val <= 0:
+                        return jsonify({"status": "error", "message": "Optimization Target must be greater than zero."}), 400
+                    data["default_optimization_target_w"] = str(round(t_val, 1))
+                except (ValueError, TypeError):
+                    return jsonify({"status": "error", "message": "Optimization Target must be a valid numeric value."}), 400
+
+        # Validate Optimization Tolerance (W)
+        if "optimization_tolerance_w" in data:
+            val = data["optimization_tolerance_w"]
+            if val is not None and str(val).strip() != "":
+                try:
+                    tol_val = float(val)
+                    if tol_val < 0:
+                        return jsonify({"status": "error", "message": "Optimization tolerance cannot be negative."}), 400
+                    data["optimization_tolerance_w"] = str(round(tol_val, 1))
+                except (ValueError, TypeError):
+                    return jsonify({"status": "error", "message": "Optimization tolerance must be a numeric value."}), 400
+
         # Validate Vacant Room Wattage Threshold (W) - kept independent
         if "empty_room_threshold_w" in data:
             val = data["empty_room_threshold_w"]
@@ -1254,5 +1334,100 @@ def handle_system_settings():
     else:
         settings = _room_mgr.get_system_settings()
         return jsonify({"status": "success", "settings": settings})
+
+@api_bp.route("/simulator/reset-demo", methods=["POST"])
+@api_bp.route("/rooms/reset-simulation", methods=["POST"])
+def reset_demo_simulation():
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    from services.live_power_simulator import live_simulator
+    result = live_simulator.reset(operator=operator)
+    result["simulation"] = live_simulator.get_status()
+    return jsonify(result)
+
+# -------------------------------------------------------------------------
+# 20. Live Power Simulator APIs
+# -------------------------------------------------------------------------
+@api_bp.route("/simulation/status", methods=["GET"])
+def get_simulation_status():
+    from services.live_power_simulator import live_simulator
+    return jsonify({
+        "status": "success",
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/simulation/start", methods=["POST"])
+def start_simulation():
+    from services.live_power_simulator import live_simulator
+    live_simulator.start()
+    return jsonify({
+        "status": "success",
+        "message": "Simulation started",
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/simulation/pause", methods=["POST"])
+def pause_simulation():
+    from services.live_power_simulator import live_simulator
+    live_simulator.pause()
+    return jsonify({
+        "status": "success",
+        "message": "Simulation paused",
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/simulation/resume", methods=["POST"])
+def resume_simulation():
+    from services.live_power_simulator import live_simulator
+    live_simulator.resume()
+    return jsonify({
+        "status": "success",
+        "message": "Simulation resumed",
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/simulation/reset", methods=["POST"])
+def reset_simulation():
+    data = request.get_json() or {}
+    operator = data.get("operator", "Hostel Warden")
+    from services.live_power_simulator import live_simulator
+    result = live_simulator.reset(operator=operator)
+    return jsonify({
+        "status": "success",
+        "message": "Simulation reset successfully",
+        "reset_result": result,
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/simulation/step", methods=["POST"])
+def step_simulation():
+    data = request.get_json() or {}
+    elapsed = float(data.get("elapsed_seconds", 10.0))
+    from services.live_power_simulator import live_simulator
+    updated_rooms = live_simulator.step(elapsed_seconds=elapsed)
+    return jsonify({
+        "status": "success",
+        "message": f"Simulated {elapsed}s step executed",
+        "updated_count": len(updated_rooms),
+        "simulation": live_simulator.get_status()
+    })
+
+@api_bp.route("/rooms/<room_id>/simulation-profile", methods=["POST"])
+def set_room_simulation_profile(room_id):
+    data = request.get_json() or {}
+    profile = data.get("profile")
+    if not profile:
+        return jsonify({"status": "error", "message": "Missing 'profile' field in JSON request body."}), 400
+    from services.live_power_simulator import live_simulator
+    res = live_simulator.set_room_profile(room_id, profile)
+    if not res.get("success"):
+        return jsonify({"status": "error", "message": res.get("error", "Failed to update profile")}), 400
+    return jsonify({
+        "status": "success",
+        "room_id": room_id,
+        "simulation_profile": res["simulation_profile"],
+        "message": f"Room {room_id} profile set to {res['simulation_profile']}"
+    })
+
 
 
